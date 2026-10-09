@@ -1,0 +1,23 @@
+@page "/indice/excluir"
+
+<ScriptPage Title="Excluir índice" Request="_request"
+            Description="Remove um índice de uma tabela.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Nome do índice</label>
+            <ObjectNameInput @bind-Value="_request.IndexName" Schema="@_request.Schema" Table="@_request.Table" Kind="ObjectNameInput.Source.Indexes" Placeholder="Ex.: IX_Cliente_Nome" />
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) se o índice não existir.</li>
+            <li>Falha se o índice pertencer a uma PK/UNIQUE (use "Excluir constraint").</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropIndexRequest _request = new();
+}

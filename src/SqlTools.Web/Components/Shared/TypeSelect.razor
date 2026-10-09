@@ -1,0 +1,11 @@
+<select class="form-select @(Small ? "form-select-sm" : "")" @bind="Column.DataType">
+    @foreach (var type in SqlTypeCatalog.All)
+    {
+        <option value="@type.Name">@type.Name</option>
+    }
+</select>
+
+@code {
+    [Parameter, EditorRequired] public ColumnDefinition Column { get; set; } = default!;
+    [Parameter] public bool Small { get; set; }
+}

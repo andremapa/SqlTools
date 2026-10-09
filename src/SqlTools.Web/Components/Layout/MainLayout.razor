@@ -1,0 +1,59 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject DatabaseConnection Connection
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <span class="text-muted small me-auto d-none d-md-inline">Gerador de scripts T-SQL idempotentes · SQL Server</span>
+            <a href="conexao" class="conn-chip @(Connection.IsConnected ? "on" : "off")">
+                <span class="status-dot"></span>
+                @if (Connection.IsLoading)
+                {
+                    <span>Conectando…</span>
+                }
+                else if (Connection.IsConnected)
+                {
+                    <span>@Connection.Schema!.Database <span class="text-muted">@@ @Connection.Schema.Server</span></span>
+                }
+                else if (Connection.IsServerConnected)
+                {
+                    <span>@Connection.Settings!.Server <span class="text-muted">· escolha um banco</span></span>
+                }
+                else
+                {
+                    <span>Sem conexão com banco</span>
+                }
+            </a>
+        </div>
+
+        <article class="content px-4 pb-5">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    protected override void OnInitialized() => Connection.Changed += OnChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Reconecta com a string lembrada no navegador (precisa de JS, por isso só após renderizar).
+        if (firstRender)
+            await Connection.RestoreAsync();
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Connection.Changed -= OnChanged;
+}

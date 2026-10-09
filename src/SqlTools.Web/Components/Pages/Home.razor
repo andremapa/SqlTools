@@ -1,0 +1,44 @@
+@page "/"
+@implements IDisposable
+@inject DatabaseConnection Connection
+
+<PageTitle>SqlTools</PageTitle>
+
+<div class="home">
+    <h1 class="h3 mb-1">O que você quer gerar?</h1>
+    <p class="text-muted mb-4">Scripts T-SQL que validam o banco antes de alterar e podem ser reexecutados sem erro.</p>
+
+    @foreach (var group in NavItems.Groups)
+    {
+        <div class="home-group">
+            <h2>@group.Title</h2>
+            <div class="home-tiles">
+                @foreach (var item in group.Items)
+                {
+                    <a class="home-tile" href="@item.Href"><Icon Name="@item.Icon" Size="1.15rem" />@item.Title</a>
+                }
+            </div>
+        </div>
+    }
+
+    <p class="home-footnote">
+        @if (Connection.IsConnected)
+        {
+            <span class="status-dot"></span>
+            <span>Conectado a <strong>@Connection.Schema!.Database</strong>: as telas sugerem as tabelas e colunas existentes.</span>
+        }
+        else
+        {
+            <Icon Name="database" Size="1rem" />
+            <span><a href="conexao">Conecte um banco</a> para escolher tabelas e colunas em listas, em vez de digitar.</span>
+        }
+    </p>
+</div>
+
+@code {
+    protected override void OnInitialized() => Connection.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Connection.Changed -= OnChanged;
+}

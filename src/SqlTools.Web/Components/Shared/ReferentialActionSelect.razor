@@ -1,0 +1,13 @@
+<select class="form-select" value="@Value" @onchange="OnChange">
+    @foreach (var action in Enum.GetValues<ReferentialAction>())
+    {
+        <option value="@action">@action.ToSql()</option>
+    }
+</select>
+
+@code {
+    [Parameter] public ReferentialAction Value { get; set; }
+    [Parameter] public EventCallback<ReferentialAction> ValueChanged { get; set; }
+
+    private Task OnChange(ChangeEventArgs e) => ValueChanged.InvokeAsync(Enum.Parse<ReferentialAction>(e.Value!.ToString()!));
+}

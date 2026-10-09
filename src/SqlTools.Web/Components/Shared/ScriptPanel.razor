@@ -1,0 +1,117 @@
+@using System.Text.RegularExpressions
+@inject IScriptGenerator Generator
+@inject ScriptSession Session
+@inject IJSRuntime JS
+
+<div class="card script-panel">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+        <strong class="me-auto">Script gerado</strong>
+        @if (Request is not null)
+        {
+            <button class="btn btn-sm btn-outline-primary" disabled="@(!_result.IsValid)" @onclick="AddToBatch">
+                + Adicionar ao lote
+            </button>
+        }
+        <button class="btn btn-sm btn-outline-secondary" disabled="@(!_result.IsValid)" @onclick="Copy">Copiar</button>
+        <button class="btn btn-sm btn-primary" disabled="@(!_result.IsValid)" @onclick="Download">Baixar .sql</button>
+    </div>
+
+    <div class="card-body border-bottom py-2">
+        <div class="d-flex flex-wrap gap-3 align-items-center small">
+            <input class="form-control form-control-sm options-db" placeholder="Banco p/ USE (opcional)"
+                   @bind="Session.Options.DatabaseName" @bind:event="oninput" @bind:after="Regenerate" />
+            <label class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" @bind="Session.Options.UseTransaction" @bind:after="Regenerate" />
+                Transação com rollback
+            </label>
+            <label class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" @bind="Session.Options.IncludeHeader" @bind:after="Regenerate" />
+                Cabeçalho
+            </label>
+        </div>
+    </div>
+
+    @if (_feedback is not null)
+    {
+        <div class="alert alert-success py-1 px-3 m-2 small">@_feedback</div>
+    }
+
+    @if (_result.IsValid)
+    {
+        <pre class="sql-output mb-0">@_result.Script</pre>
+    }
+    else
+    {
+        <div class="card-body">
+            <div class="alert alert-warning mb-0">
+                <div class="fw-semibold mb-1">Preencha/corrija para gerar o script:</div>
+                <ul class="mb-0">
+                    @foreach (var error in _result.Errors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Operação única (páginas de operação).</summary>
+    [Parameter] public ScriptRequest? Request { get; set; }
+
+    /// <summary>Várias operações (página de lote).</summary>
+    [Parameter] public IReadOnlyList<ScriptRequest>? Requests { get; set; }
+
+    private ScriptResult _result = ScriptResult.Invalid([]);
+    private string? _feedback;
+    private CancellationTokenSource? _feedbackCts;
+
+    protected override void OnParametersSet() => Regenerate();
+
+    private void Regenerate()
+    {
+        var requests = Requests ?? (Request is null ? [] : [Request]);
+        _result = Generator.GenerateBatch(requests, Session.Options);
+    }
+
+    private void AddToBatch()
+    {
+        Session.AddToBatch(Request!);
+        _ = ShowFeedback($"Adicionado ao lote ({Session.Batch.Count} operação(ões)).");
+    }
+
+    private async Task Copy()
+    {
+        await JS.InvokeVoidAsync("sqlTools.copyText", _result.Script);
+        await ShowFeedback("Script copiado para a área de transferência.");
+    }
+
+    private async Task Download() =>
+        await JS.InvokeVoidAsync("sqlTools.downloadText", FileName(), _result.Script);
+
+    private string FileName()
+    {
+        var name = Request is not null ? $"{Request.OperationName}_{Request.Table}" : "lote";
+        var slug = Regex.Replace(name.Normalize(System.Text.NormalizationForm.FormD), @"[^A-Za-z0-9_]+", "_").Trim('_');
+        return $"{DateTime.Now:yyyyMMdd_HHmm}_{slug}.sql";
+    }
+
+    private async Task ShowFeedback(string message)
+    {
+        _feedbackCts?.Cancel();
+        _feedbackCts = new CancellationTokenSource();
+        var token = _feedbackCts.Token;
+        _feedback = message;
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(2500, token);
+            _feedback = null;
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+}

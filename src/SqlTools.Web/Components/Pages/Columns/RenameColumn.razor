@@ -1,0 +1,30 @@
+@page "/coluna/renomear"
+
+<ScriptPage Title="Renomear coluna" Request="_request"
+            Description="Renomeia uma coluna usando sp_rename.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="row g-2">
+            <div class="col-sm-6">
+                <label class="form-label">Nome atual</label>
+                <ColumnNameInput @bind-Value="_request.ColumnName" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Escolha ou digite" />
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label">Novo nome</label>
+                <input class="form-control" @bind="_request.NewName" @bind:event="oninput" />
+            </div>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) se a coluna já tiver sido renomeada (antiga não existe e nova existe).</li>
+            <li>Falha se a coluna atual não existir ou se o novo nome já estiver em uso.</li>
+            <li>Atenção: views, procedures e funções que usam o nome antigo não são atualizadas.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly RenameColumnRequest _request = new();
+}

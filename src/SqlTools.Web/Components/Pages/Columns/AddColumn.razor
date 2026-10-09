@@ -1,0 +1,29 @@
+@page "/coluna/adicionar"
+
+<ScriptPage Title="Adicionar coluna" Request="_request"
+            Description="Adiciona uma coluna a uma tabela existente.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <ColumnFields Column="_request.Column" Table="@_request.Table" />
+        @if (_request.Column.IsNullable && _request.Column.HasDefault)
+        {
+            <label class="form-check mt-2">
+                <input type="checkbox" class="form-check-input" @bind="_request.FillExistingRowsWithDefault" />
+                Preencher registros existentes com o valor padrão (WITH VALUES)
+            </label>
+        }
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) se a coluna já existir.</li>
+            <li>Falha se a coluna for NOT NULL sem valor padrão e a tabela já tiver registros.</li>
+            <li>Falha se for IDENTITY e a tabela já tiver uma coluna IDENTITY.</li>
+            <li>Falha se o nome da constraint default já estiver em uso.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddColumnRequest _request = new() { Column = new() { DataType = "NVARCHAR", Length = 100 } };
+}

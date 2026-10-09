@@ -1,0 +1,52 @@
+@page "/constraint/fk"
+
+<ScriptPage Title="Adicionar chave estrangeira" Request="_request"
+            Description="Cria a constraint FOREIGN KEY relacionando duas tabelas.">
+    <ChildContent>
+        <h2 class="h6 text-muted">Tabela de origem (filha)</h2>
+        <TableFields Request="_request" />
+        <div class="mb-3">
+            <label class="form-label">Colunas</label>
+            <ColumnListInput @bind-Value="_request.Columns" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Ex.: ClienteId" />
+        </div>
+
+        <h2 class="h6 text-muted">Tabela referenciada (pai)</h2>
+        <TablePicker @bind-Schema="_request.ReferencedSchema" @bind-Table="_request.ReferencedTable" />
+        <div class="mb-3">
+            <label class="form-label">Colunas referenciadas (mesma ordem)</label>
+            <ColumnListInput @bind-Value="_request.ReferencedColumns" Schema="@_request.ReferencedSchema" Table="@_request.ReferencedTable" Placeholder="Ex.: Id" />
+        </div>
+
+        <div class="row g-2 mb-2">
+            <div class="col-sm-6">
+                <label class="form-label">ON DELETE</label>
+                <ReferentialActionSelect @bind-Value="_request.OnDelete" />
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label">ON UPDATE</label>
+                <ReferentialActionSelect @bind-Value="_request.OnUpdate" />
+            </div>
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Nome da constraint</label>
+            <input class="form-control" @bind="_request.ConstraintName" @bind:event="oninput"
+                   placeholder="@($"FK_{_request.Table}_{_request.ReferencedTable}")" />
+        </div>
+        <label class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="_request.CheckExistingData" />
+            Validar dados existentes (WITH CHECK)
+        </label>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se alguma das tabelas ou colunas não existir.</li>
+            <li>Ignora (sem erro) se a FK já existir; falha se o nome estiver em uso por outro objeto.</li>
+            <li>Falha se as colunas referenciadas não formarem uma PK/UNIQUE.</li>
+            <li>WITH CHECK: dados órfãos existentes fazem o SQL Server rejeitar a FK (com rollback).</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddForeignKeyRequest _request = new() { ReferencedColumns = ["Id"] };
+}

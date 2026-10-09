@@ -1,0 +1,33 @@
+@inherits ConnectionAwareComponent
+
+@* Colunas de índice: "Nome DESC, Id" (ASC é o padrão). *@
+<div class="input-group">
+    <input class="form-control" value="@IndexColumn.Format(Value)" placeholder="Ex.: Nome, DataCadastro DESC" @onchange="OnChange" />
+    @if (Available.Count > 0)
+    {
+        <select class="form-select col-picker" @onchange="OnPick" title="Acrescentar coluna da tabela">
+            <option value="">+ coluna…</option>
+            @foreach (var column in Available)
+            {
+                <option value="@column">@column</option>
+            }
+        </select>
+    }
+</div>
+
+@code {
+    [Parameter] public List<IndexColumn> Value { get; set; } = [];
+    [Parameter] public EventCallback<List<IndexColumn>> ValueChanged { get; set; }
+    [Parameter] public string Schema { get; set; } = "";
+    [Parameter] public string Table { get; set; } = "";
+
+    private List<string> Available =>
+        Connection.ColumnsOf(Schema, Table).Where(c => !Value.Any(v => v.Name.Equals(c, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    private Task OnChange(ChangeEventArgs e) => ValueChanged.InvokeAsync(IndexColumn.ParseList(e.Value?.ToString()));
+
+    private Task OnPick(ChangeEventArgs e) =>
+        e.Value?.ToString() is { Length: > 0 } column
+            ? ValueChanged.InvokeAsync([.. Value, new IndexColumn(column)])
+            : Task.CompletedTask;
+}

@@ -1,0 +1,20 @@
+@inherits ConnectionAwareComponent
+
+<input class="form-control" list="@ListId" value="@Value" placeholder="@Placeholder" @oninput="OnInput" />
+<datalist id="@ListId">
+    @foreach (var column in Connection.ColumnsOf(Schema, Table))
+    {
+        <option value="@column" />
+    }
+</datalist>
+
+@code {
+    /// <summary>Nome da coluna; as sugestões vêm das colunas da tabela (Schema.Table) no banco conectado.</summary>
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Schema { get; set; } = "";
+    [Parameter] public string Table { get; set; } = "";
+    [Parameter] public string? Placeholder { get; set; }
+
+    private Task OnInput(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");
+}

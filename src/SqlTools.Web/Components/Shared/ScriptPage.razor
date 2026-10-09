@@ -1,0 +1,46 @@
+<PageTitle>@Title · SqlTools</PageTitle>
+
+<div class="mb-3">
+    <h1 class="h3 mb-1">@Title</h1>
+    <p class="text-muted mb-0">@Description</p>
+</div>
+
+<div class="row g-4">
+    <div class="@(Wide ? "col-12" : "col-xxl-5 col-xl-6")">
+        <div class="card">
+            @* Eventos de input/change dos campos borbulham até aqui e re-renderizam o preview do script. *@
+            <div class="card-body" @oninput="Refresh" @onchange="Refresh">
+                @ChildContent
+            </div>
+        </div>
+        @if (Validations is not null)
+        {
+            <div class="card mt-3 validations">
+                <div class="card-body small">
+                    <div class="fw-semibold mb-1">Validações feitas pelo script no banco</div>
+                    @Validations
+                </div>
+            </div>
+        }
+    </div>
+    <div class="@(Wide ? "col-12" : "col-xxl-7 col-xl-6")">
+        <ScriptPanel Request="Request" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Description { get; set; }
+    [Parameter, EditorRequired] public ScriptRequest Request { get; set; } = default!;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Lista (ul) das verificações que o script faz antes de alterar o banco.</summary>
+    [Parameter] public RenderFragment? Validations { get; set; }
+
+    /// <summary>Formulário em largura total, com o script abaixo.</summary>
+    [Parameter] public bool Wide { get; set; }
+
+    private void Refresh()
+    {
+    }
+}

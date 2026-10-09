@@ -1,0 +1,18 @@
+@page "/tabela/excluir"
+
+<ScriptPage Title="Excluir tabela" Request="_request"
+            Description="Remove a tabela e todos os seus dados. Use com cuidado.">
+    <ChildContent>
+        <TableFields Request="_request" />
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Ignora (sem erro) se a tabela não existir.</li>
+            <li>Falha se outras tabelas tiverem chaves estrangeiras apontando para ela.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropTableRequest _request = new();
+}

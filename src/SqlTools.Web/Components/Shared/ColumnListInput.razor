@@ -1,0 +1,36 @@
+@inherits ConnectionAwareComponent
+
+@* Lista de colunas: texto separado por vírgula + (com banco conectado) lista para acrescentar colunas da tabela. *@
+<div class="input-group">
+    <input class="form-control" value="@ColumnList.Format(Value)" placeholder="@Placeholder" @onchange="OnChange" />
+    @if (Available.Count > 0)
+    {
+        <select class="form-select col-picker" @onchange="OnPick" title="Acrescentar coluna da tabela">
+            <option value="">+ coluna…</option>
+            @foreach (var column in Available)
+            {
+                <option value="@column">@column</option>
+            }
+        </select>
+    }
+</div>
+
+@code {
+    [Parameter] public List<string> Value { get; set; } = [];
+    [Parameter] public EventCallback<List<string>> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Ex.: Coluna1, Coluna2";
+
+    /// <summary>Tabela cujas colunas são oferecidas. Sem conexão (ou tabela inexistente) só há o campo de texto.</summary>
+    [Parameter] public string Schema { get; set; } = "";
+    [Parameter] public string Table { get; set; } = "";
+
+    private List<string> Available =>
+        Connection.ColumnsOf(Schema, Table).Where(c => !Value.Contains(c, StringComparer.OrdinalIgnoreCase)).ToList();
+
+    private Task OnChange(ChangeEventArgs e) => ValueChanged.InvokeAsync(ColumnList.Parse(e.Value?.ToString()));
+
+    private Task OnPick(ChangeEventArgs e) =>
+        e.Value?.ToString() is { Length: > 0 } column
+            ? ValueChanged.InvokeAsync([.. Value, column])
+            : Task.CompletedTask;
+}

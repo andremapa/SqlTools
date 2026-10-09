@@ -1,0 +1,45 @@
+@page "/indice/criar"
+
+<ScriptPage Title="Criar índice" Request="_request"
+            Description="Índice para acelerar consultas ou garantir unicidade.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Colunas-chave (adicione DESC para ordem decrescente)</label>
+            <IndexColumnListInput @bind-Value="_request.Columns" Schema="@_request.Schema" Table="@_request.Table" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Colunas incluídas (INCLUDE)</label>
+            <ColumnListInput @bind-Value="_request.IncludedColumns" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Opcional. Ex.: Email, Telefone" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Filtro (WHERE)</label>
+            <input class="form-control font-monospace" @bind="_request.Filter" @bind:event="oninput" placeholder="Opcional. Ex.: [Ativo] = 1" />
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6">
+                <label class="form-label">Nome do índice</label>
+                <input class="form-control" @bind="_request.IndexName" @bind:event="oninput" placeholder="@_request.GetIndexName()" />
+            </div>
+            <div class="col-sm-6 d-flex gap-3">
+                <label class="form-check">
+                    <input type="checkbox" class="form-check-input" @bind="_request.IsUnique" /> UNIQUE
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" class="form-check-input" @bind="_request.IsClustered" /> CLUSTERED
+                </label>
+            </div>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela ou alguma coluna (chave ou INCLUDE) não existir.</li>
+            <li>Ignora (sem erro) se já existir índice com esse nome na tabela.</li>
+            <li>CLUSTERED: falha se a tabela já tiver índice clustered.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly CreateIndexRequest _request = new();
+}

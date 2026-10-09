@@ -1,0 +1,139 @@
+@page "/cadastro"
+@attribute [ExcludeFromInteractiveRouting]
+@attribute [AllowAnonymous]
+@layout AuthLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SqlTools.Web.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject UserAdminService Admin
+
+<PageTitle>Criar conta · SqlTools</PageTitle>
+
+@if (!_loaded)
+{
+    return;
+}
+
+@if (!_open)
+{
+    <h1 class="h4 mb-1">Criar conta</h1>
+    <div class="alert alert-warning small mt-3">Novas contas são criadas pelo administrador. Peça o seu acesso a ele.</div>
+    <a href="entrar" class="btn btn-outline-primary w-100">Voltar para o login</a>
+    return;
+}
+
+<h1 class="h4 mb-1">@(_first ? "Criar administrador" : "Criar conta")</h1>
+<p class="text-muted small mb-4">
+    @(_first ? "Ainda não há usuários. Esta conta será a administradora e poderá cadastrar os demais." : "Leva menos de um minuto.")
+</p>
+
+@if (_errors.Count > 0)
+{
+    <div class="alert alert-danger py-2 small mb-3">
+        <ul class="mb-0 ps-3">
+            @foreach (var error in _errors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    </div>
+}
+
+<EditForm Model="Input" FormName="register" OnValidSubmit="RegisterAsync" method="post">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label class="form-label" for="name">Nome</label>
+        <InputText id="name" class="form-control" @bind-Value="Input.Name" autocomplete="name" autofocus />
+        <ValidationMessage For="() => Input.Name" class="small" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="username">Nome de usuário <span class="text-muted small">(usado para entrar)</span></label>
+        <InputText id="username" class="form-control" @bind-Value="Input.Username" autocomplete="username" />
+        <ValidationMessage For="() => Input.Username" class="small" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="email">E-mail</label>
+        <InputText id="email" class="form-control" @bind-Value="Input.Email" autocomplete="email" />
+        <ValidationMessage For="() => Input.Email" class="small" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="password">Senha <span class="text-muted small">(mínimo 8 caracteres, com letra minúscula e número)</span></label>
+        <InputText id="password" type="password" class="form-control" @bind-Value="Input.Password" autocomplete="new-password" />
+        <ValidationMessage For="() => Input.Password" class="small" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="confirm">Confirmar senha</label>
+        <InputText id="confirm" type="password" class="form-control" @bind-Value="Input.ConfirmPassword" autocomplete="new-password" />
+        <ValidationMessage For="() => Input.ConfirmPassword" class="small" />
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Criar conta</button>
+</EditForm>
+
+<p class="text-center small mt-4 mb-0">Já tem conta? <a href="entrar">Entrar</a></p>
+
+@code {
+    private RegisterModel? _input;
+
+    [SupplyParameterFromForm] private RegisterModel Input { get => _input ??= new(); set => _input = value; }
+
+    private List<string> _errors = [];
+    private bool _loaded, _first, _open;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // O primeiro cadastro sempre é permitido (vira administrador); depois só com Auth:AllowRegistration.
+        _first = !await Admin.HasUsersAsync();
+        _open = _first || Configuration.GetValue("Auth:AllowRegistration", false);
+        _loaded = true;
+    }
+
+    private async Task RegisterAsync()
+    {
+        // Reavalia no envio: o cadastro público pode ter sido fechado desde que a página foi aberta.
+        if (!_open)
+            return;
+
+        var email = Input.Email.Trim();
+        var user = new ApplicationUser { UserName = Input.Username.Trim(), Email = email, DisplayName = Input.Name.Trim() };
+
+        var result = await UserManager.CreateAsync(user, Input.Password);
+        if (!result.Succeeded)
+        {
+            _errors = result.Errors.Select(IdentityErrors.Translate).Distinct().ToList();
+            return;
+        }
+
+        if (_first)
+            await UserManager.AddToRoleAsync(user, UserAdminService.AdminRole);
+
+        await SignInManager.SignInAsync(user, isPersistent: false);
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private sealed class RegisterModel
+    {
+        [Required(ErrorMessage = "Informe o nome.")]
+        [StringLength(80)]
+        public string Name { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe o nome de usuário.")]
+        [RegularExpression(UsernameRules.Pattern, ErrorMessage = UsernameRules.Message)]
+        public string Username { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe o e-mail.")]
+        [EmailAddress(ErrorMessage = "E-mail inválido.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe a senha.")]
+        public string Password { get; set; } = "";
+
+        [Required(ErrorMessage = "Confirme a senha.")]
+        [Compare(nameof(Password), ErrorMessage = "As senhas não conferem.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

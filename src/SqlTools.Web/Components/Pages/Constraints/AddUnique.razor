@@ -1,0 +1,36 @@
+@page "/constraint/unique"
+
+<ScriptPage Title="Adicionar constraint UNIQUE" Request="_request"
+            Description="Garante que não haja valores repetidos na(s) coluna(s).">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Colunas</label>
+            <ColumnListInput @bind-Value="_request.Columns" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Ex.: Email  ou  EmpresaId, Codigo" />
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-7">
+                <label class="form-label">Nome da constraint</label>
+                <input class="form-control" @bind="_request.ConstraintName" @bind:event="oninput"
+                       placeholder="@($"UQ_{_request.Table}_{string.Join("_", _request.Columns)}")" />
+            </div>
+            <div class="col-sm-5">
+                <label class="form-check">
+                    <input type="checkbox" class="form-check-input" @bind="_request.Clustered" /> CLUSTERED
+                </label>
+            </div>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela ou alguma coluna não existir.</li>
+            <li>Ignora (sem erro) se a constraint já existir; falha se o nome estiver em uso por outro objeto.</li>
+            <li>CLUSTERED: falha se a tabela já tiver índice clustered.</li>
+            <li>Valores duplicados existentes fazem o SQL Server rejeitar a constraint (com rollback).</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddUniqueRequest _request = new();
+}

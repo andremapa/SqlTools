@@ -1,0 +1,241 @@
+@page "/conexao"
+@implements IDisposable
+@inject DatabaseConnection Connection
+
+<PageTitle>Conexão · SqlTools</PageTitle>
+
+<div class="mb-4">
+    <h1 class="h3 mb-1">Conexão com o banco</h1>
+    <p class="text-muted mb-0">
+        Conecte um SQL Server para que as telas ofereçam as tabelas, colunas, constraints e índices existentes.
+        A conexão é <strong>somente leitura</strong>: a aplicação lê a estrutura e nunca executa os scripts gerados.
+    </p>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="ssms" @onkeydown="OnKey">
+            <div class="ssms-head">
+                <Icon Name="database" Size="1.6rem" StrokeWidth="1.5" />
+                <div>
+                    <strong>Conectar ao servidor</strong>
+                    <span>Mecanismo de Banco de Dados · SQL Server</span>
+                </div>
+            </div>
+
+            <div class="ssms-body">
+                <div class="ssms-row">
+                    <label for="srv">Servidor</label>
+                    <input id="srv" class="form-control" @bind="_server" @bind:event="oninput" autocomplete="off" spellcheck="false"
+                           placeholder="servidor\instância  ou  servidor,porta" />
+                </div>
+
+                <div class="ssms-row">
+                    <label for="auth">Autenticação</label>
+                    <select id="auth" class="form-select" @bind="_authMode">
+                        <option value="sql">Autenticação do SQL Server</option>
+                        <option value="windows">Autenticação do Windows</option>
+                    </select>
+                </div>
+
+                <div class="ssms-row">
+                    <label for="usr">Usuário</label>
+                    <input id="usr" class="form-control" @bind="_user" @bind:event="oninput" disabled="@_windowsAuth" autocomplete="off" spellcheck="false" />
+                </div>
+
+                <div class="ssms-row">
+                    <label for="pwd">Senha</label>
+                    <input id="pwd" class="form-control" type="password" @bind="_password" @bind:event="oninput" disabled="@_windowsAuth" autocomplete="new-password" />
+                </div>
+
+                @if (_windowsAuth)
+                {
+                    <div class="ssms-row">
+                        <span></span>
+                        <div class="form-text mt-0">Usa a conta do Windows com a qual o SqlTools está rodando.</div>
+                    </div>
+                }
+
+                <div class="ssms-row">
+                    <span></span>
+                    <label class="form-check mb-0">
+                        <input type="checkbox" class="form-check-input" @bind="_remember" />
+                        Lembrar neste navegador
+                        <span class="d-block form-text mt-0">Guardado criptografado, só para o seu usuário. Desmarque em computadores compartilhados.</span>
+                    </label>
+                </div>
+
+                @if (Connection.Error is not null)
+                {
+                    <div class="alert alert-danger py-2 small mt-3 mb-0">@Connection.Error</div>
+                }
+
+                <div class="ssms-actions">
+                    @if (Connection.IsServerConnected)
+                    {
+                        <button class="btn btn-outline-danger" disabled="@Connection.IsLoading" @onclick="DisconnectAsync">Desconectar</button>
+                    }
+                    <button class="btn btn-primary" disabled="@(Connection.IsLoading || !CanConnect)" @onclick="ConnectAsync">
+                        @(Connection.IsLoading ? "Conectando…" : Connection.IsServerConnected ? "Reconectar" : "Conectar")
+                    </button>
+                </div>
+
+                @if (Connection.IsServerConnected)
+                {
+                    <div class="ssms-row ssms-db">
+                        <label for="db">Banco de dados</label>
+                        <div class="d-flex gap-2">
+                            <select id="db" class="form-select" disabled="@Connection.IsLoading" @onchange="OnDatabaseChanged">
+                                <option value="" selected="@(string.IsNullOrEmpty(Connection.Settings?.Database))">Selecione um banco…</option>
+                                @foreach (var db in Connection.Databases.Where(d => !d.IsSystem))
+                                {
+                                    <option value="@db.Name" selected="@IsSelected(db)">@db.Name</option>
+                                }
+                                @if (Connection.Databases.Any(d => d.IsSystem))
+                                {
+                                    <optgroup label="Bancos do sistema">
+                                        @foreach (var db in Connection.Databases.Where(d => d.IsSystem))
+                                        {
+                                            <option value="@db.Name" selected="@IsSelected(db)">@db.Name</option>
+                                        }
+                                    </optgroup>
+                                }
+                            </select>
+                            @if (Connection.IsConnected)
+                            {
+                                <button class="btn btn-outline-primary" title="Atualizar estrutura" disabled="@Connection.IsLoading" @onclick="Connection.RefreshAsync">
+                                    <Icon Name="refresh" Size="1rem" />
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        @if (Connection.IsConnected)
+        {
+            var schema = Connection.Schema!;
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <span class="status-dot me-2"></span>
+                    <strong class="me-auto">Explorador</strong>
+                    <span class="text-muted small">@schema.Tables.Count tabela(s)</span>
+                </div>
+                <div class="card-body obj-tree">
+                    <details open>
+                        <summary><Icon Name="database" Size="1rem" /> <strong>@schema.Database</strong> <span class="text-muted small">@schema.Server</span></summary>
+                        @if (schema.Tables.Count == 0)
+                        {
+                            <div class="tree-empty">O banco ainda não tem tabelas.</div>
+                        }
+                        @foreach (var group in schema.Tables.GroupBy(t => t.Schema))
+                        {
+                            <details open>
+                                <summary><Icon Name="folder" Size="1rem" /> @group.Key <span class="text-muted small">(@group.Count())</span></summary>
+                                @foreach (var table in group)
+                                {
+                                    <details>
+                                        <summary><Icon Name="table" Size="1rem" /> @table.Name <span class="text-muted small">@table.Columns.Count col.</span></summary>
+                                        <ul class="tree-columns">
+                                            @foreach (var column in table.Columns)
+                                            {
+                                                <li>
+                                                    <span>@column.Name</span>
+                                                    <span class="text-muted">@TypeText(column)@(column.IsIdentity ? " · IDENTITY" : "")@(column.IsNullable ? "" : " · NOT NULL")</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </details>
+                                }
+                            </details>
+                        }
+                    </details>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty-hint">
+                <Icon Name="database" Size="2rem" StrokeWidth="1.4" />
+                <p class="mb-0">
+                    @(Connection.IsServerConnected
+                        ? "Escolha o banco de dados para carregar as tabelas."
+                        : "Sem conexão. Você ainda pode gerar scripts digitando os nomes manualmente.")
+                </p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _server = "", _user = "", _password = "";
+    private string _authMode = "sql";
+    private bool _remember;
+
+    private bool _windowsAuth => _authMode == "windows";
+
+    private bool CanConnect => !string.IsNullOrWhiteSpace(_server) && (_windowsAuth || !string.IsNullOrWhiteSpace(_user));
+
+    protected override void OnInitialized()
+    {
+        Connection.Changed += OnChanged;
+        FillFromConnection();
+    }
+
+    // Após restaurar a conexão lembrada no navegador, mostra os dados nos campos.
+    private void FillFromConnection()
+    {
+        if (Connection.Settings is not { } s || !string.IsNullOrEmpty(_server))
+            return;
+
+        _server = s.Server;
+        _authMode = s.WindowsAuthentication ? "windows" : "sql";
+        _user = s.UserName ?? "";
+        _password = s.Password ?? "";
+        _remember = Connection.Remember;
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        FillFromConnection();
+        StateHasChanged();
+    });
+
+    private bool IsSelected(DatabaseEntry db) =>
+        db.Name.Equals(Connection.Settings?.Database, StringComparison.OrdinalIgnoreCase);
+
+    private Task ConnectAsync() =>
+        Connection.ConnectAsync(
+            new ConnectionSettings(_server, _windowsAuth, _windowsAuth ? null : _user, _windowsAuth ? null : _password, Connection.Settings?.Database),
+            _remember);
+
+    private async Task DisconnectAsync()
+    {
+        await Connection.DisconnectAsync();
+        _server = _user = _password = "";
+        _authMode = "sql";
+        _remember = false;
+    }
+
+    private Task OnDatabaseChanged(ChangeEventArgs e) => Connection.SelectDatabaseAsync(e.Value?.ToString() ?? "");
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && CanConnect && !Connection.IsLoading)
+            await ConnectAsync();
+    }
+
+    private static string TypeText(ColumnInfo c) => c.DataType switch
+    {
+        "NVARCHAR" or "NCHAR" => $"{c.DataType}({(c.MaxLength == -1 ? "MAX" : c.MaxLength / 2)})",
+        "VARCHAR" or "CHAR" or "VARBINARY" or "BINARY" => $"{c.DataType}({(c.MaxLength == -1 ? "MAX" : c.MaxLength)})",
+        "DECIMAL" or "NUMERIC" => $"{c.DataType}({c.Precision},{c.Scale})",
+        "DATETIME2" or "TIME" or "DATETIMEOFFSET" => $"{c.DataType}({c.Scale})",
+        _ => c.DataType,
+    };
+
+    public void Dispose() => Connection.Changed -= OnChanged;
+}

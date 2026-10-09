@@ -1,0 +1,8 @@
+<TablePicker Label="@Label" WarnIfExists="WarnIfExists"
+             @bind-Schema="Request.Schema" @bind-Table="Request.Table" />
+
+@code {
+    [Parameter, EditorRequired] public ScriptRequest Request { get; set; } = default!;
+    [Parameter] public string Label { get; set; } = "Tabela";
+    [Parameter] public bool WarnIfExists { get; set; }
+}

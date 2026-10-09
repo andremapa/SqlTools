@@ -1,0 +1,23 @@
+@page "/constraint/excluir"
+
+<ScriptPage Title="Excluir constraint" Request="_request"
+            Description="Remove uma PK, FK, UNIQUE, CHECK ou DEFAULT de uma tabela.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Nome da constraint</label>
+            <ObjectNameInput @bind-Value="_request.ConstraintName" Schema="@_request.Schema" Table="@_request.Table" Kind="ObjectNameInput.Source.Constraints" Placeholder="Ex.: FK_Pedido_Cliente" />
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) se a constraint não existir nessa tabela.</li>
+            <li>Falha se for uma PK/UNIQUE referenciada por chaves estrangeiras.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropConstraintRequest _request = new();
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SqlTools.Core/SqlTools.Core.csproj" />
+    <Project Path="src/SqlTools.Web/SqlTools.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SqlTools.Core.Tests/SqlTools.Core.Tests.csproj" />
+  </Folder>
+</Solution>

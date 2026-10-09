@@ -1,0 +1,32 @@
+@page "/constraint/check"
+
+<ScriptPage Title="Adicionar constraint CHECK" Request="_request"
+            Description="Regra que cada linha da tabela deve satisfazer.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Nome da constraint</label>
+            <input class="form-control" @bind="_request.ConstraintName" @bind:event="oninput" placeholder="@($"CK_{_request.Table}_Regra")" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Expressão</label>
+            <textarea class="form-control font-monospace" rows="3" @bind="_request.Expression" @bind:event="oninput"
+                      placeholder="Ex.: [Valor] >= 0 AND [Status] IN ('A', 'I')"></textarea>
+        </div>
+        <label class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="_request.CheckExistingData" />
+            Validar dados existentes (WITH CHECK)
+        </label>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) se a constraint já existir; falha se o nome estiver em uso por outro objeto.</li>
+            <li>WITH CHECK: linhas que violam a regra fazem o SQL Server rejeitar a constraint (com rollback).</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddCheckRequest _request = new();
+}

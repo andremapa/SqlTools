@@ -1,0 +1,105 @@
+@page "/entrar"
+@attribute [ExcludeFromInteractiveRouting]
+@attribute [AllowAnonymous]
+@layout AuthLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SqlTools.Web.Data
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject UserAdminService Admin
+
+<PageTitle>Entrar · SqlTools</PageTitle>
+
+<h1 class="h4 mb-1">Entrar</h1>
+<p class="text-muted small mb-4">Entre com seu nome de usuário ou e-mail e a senha.</p>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger py-2 small">@_error</div>
+}
+
+<EditForm Model="Input" FormName="login" OnValidSubmit="SignInAsync" method="post">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label class="form-label" for="login">Usuário ou e-mail</label>
+        <InputText id="login" class="form-control" @bind-Value="Input.Login" autocomplete="username" autofocus />
+        <ValidationMessage For="() => Input.Login" class="small" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="password">Senha</label>
+        <InputText id="password" type="password" class="form-control" @bind-Value="Input.Password" autocomplete="current-password" />
+        <ValidationMessage For="() => Input.Password" class="small" />
+    </div>
+    <label class="form-check mb-3">
+        <InputCheckbox class="form-check-input" @bind-Value="Input.RememberMe" /> Manter conectado
+    </label>
+    <button type="submit" class="btn btn-primary w-100">Entrar</button>
+</EditForm>
+
+@if (_canRegister)
+{
+    <p class="text-center small mt-4 mb-0">
+        Ainda não tem conta? <a href="cadastro?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "")">Criar conta</a>
+    </p>
+}
+
+@code {
+    private LoginModel? _input;
+
+    [SupplyParameterFromForm] private LoginModel Input { get => _input ??= new(); set => _input = value; }
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    private string? _error;
+    private bool _canRegister;
+
+    // O link de cadastro só aparece quando ele de fato está disponível.
+    protected override async Task OnInitializedAsync() =>
+        _canRegister = Configuration.GetValue("Auth:AllowRegistration", false) || !await Admin.HasUsersAsync();
+
+    private async Task SignInAsync()
+    {
+        // Aceita o nome de usuário ou o e-mail (nomes de usuário novos não têm "@", então não há ambiguidade).
+        var login = Input.Login.Trim();
+        var user = await SignInManager.UserManager.FindByNameAsync(login)
+                   ?? await SignInManager.UserManager.FindByEmailAsync(login);
+
+        // Conta desativada pelo administrador (bloqueio sem prazo); não é o bloqueio temporário por tentativas.
+        if (user is not null && user.LockoutEnd == DateTimeOffset.MaxValue
+            && await SignInManager.UserManager.CheckPasswordAsync(user, Input.Password))
+        {
+            _error = "Esta conta está desativada. Fale com o administrador.";
+            return;
+        }
+
+        var result = user is null
+            ? Microsoft.AspNetCore.Identity.SignInResult.Failed
+            : await SignInManager.PasswordSignInAsync(user, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+
+        if (result.Succeeded)
+            Navigation.NavigateTo(SafeReturnUrl(), forceLoad: true);
+        else
+            _error = result.IsLockedOut
+                ? "Conta bloqueada temporariamente por excesso de tentativas. Tente novamente em alguns minutos."
+                : "Usuário/e-mail ou senha inválidos.";
+    }
+
+    // Aceita apenas caminhos locais, para evitar redirecionamento para sites externos.
+    private string SafeReturnUrl() =>
+        !string.IsNullOrEmpty(ReturnUrl) && Uri.TryCreate(ReturnUrl, UriKind.Relative, out var uri) && !ReturnUrl.StartsWith("//") && !ReturnUrl.StartsWith("\\") && !uri.IsAbsoluteUri
+            ? "/" + ReturnUrl.TrimStart('/')
+            : "/";
+
+    private sealed class LoginModel
+    {
+        [Required(ErrorMessage = "Informe o usuário ou e-mail.")]
+        public string Login { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe a senha.")]
+        public string Password { get; set; } = "";
+
+        public bool RememberMe { get; set; }
+    }
+}

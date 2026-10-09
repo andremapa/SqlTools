@@ -1,0 +1,95 @@
+@implements IDisposable
+@inject ScriptSession Session
+@inject DatabaseConnection Connection
+@inject AuthenticationStateProvider Authentication
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand brand" href="">
+            <Icon Name="tool" Size="1.35rem" />
+            <span>SqlTools</span>
+        </a>
+    </div>
+</div>
+
+<input type="checkbox" title="Menu de navegação" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column nav-main">
+        <div class="nav-item px-3 pt-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><Icon Name="home" />Início</NavLink>
+        </div>
+
+        @foreach (var group in NavItems.Groups)
+        {
+            <div class="nav-section px-3">@group.Title</div>
+            @foreach (var item in group.Items)
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="@item.Href"><Icon Name="@item.Icon" />@item.Title</NavLink>
+                </div>
+            }
+        }
+
+        <div class="nav-section px-3">Lote</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="lote">
+                <Icon Name="layers" />Script em lote
+                @if (Session.Batch.Count > 0)
+                {
+                    <span class="badge rounded-pill nav-badge ms-auto">@Session.Batch.Count</span>
+                }
+            </NavLink>
+        </div>
+
+        <div class="nav-section px-3">Banco de dados</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="conexao">
+                <Icon Name="database" />Conexão
+                @if (Connection.IsConnected)
+                {
+                    <span class="status-dot ms-auto" title="Conectado a @Connection.Schema!.Database"></span>
+                }
+            </NavLink>
+        </div>
+
+        <AuthorizeView Roles="@UserAdminService.AdminRole">
+            <div class="nav-section px-3">Administração</div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="admin/usuarios"><Icon Name="users" />Usuários</NavLink>
+            </div>
+        </AuthorizeView>
+    </nav>
+
+    <div class="nav-user px-3" onclick="event.stopPropagation()">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <Icon Name="user" />
+            <span class="nav-user-name" title="@_userName">@_userName</span>
+        </div>
+        <form action="sair" method="post">
+            <AntiforgeryToken />
+            <button type="submit" class="btn btn-sm btn-outline-light w-100"><Icon Name="logout" Size="1rem" /> Sair</button>
+        </form>
+    </div>
+</div>
+
+@code {
+    private string _userName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += OnChanged;
+        Connection.Changed += OnChanged;
+
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        _userName = user.Identity?.Name ?? "";
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.Changed -= OnChanged;
+        Connection.Changed -= OnChanged;
+    }
+}

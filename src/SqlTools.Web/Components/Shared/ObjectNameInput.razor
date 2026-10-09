@@ -1,0 +1,28 @@
+@inherits ConnectionAwareComponent
+
+<input class="form-control" list="@ListId" value="@Value" placeholder="@Placeholder" @oninput="OnInput" />
+<datalist id="@ListId">
+    @foreach (var item in Items())
+    {
+        <option value="@item.Name">@item.Kind</option>
+    }
+</datalist>
+
+@code {
+    public enum Source { Constraints, Indexes }
+
+    /// <summary>Nome de constraint ou índice; sugere os existentes na tabela (Schema.Table) do banco conectado.</summary>
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Schema { get; set; } = "";
+    [Parameter] public string Table { get; set; } = "";
+    [Parameter] public Source Kind { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+
+    private IReadOnlyList<NamedObject> Items() =>
+        Connection.Find(Schema, Table) is { } table
+            ? (Kind == Source.Constraints ? table.Constraints : table.Indexes)
+            : [];
+
+    private Task OnInput(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");
+}

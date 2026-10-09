@@ -1,0 +1,28 @@
+@page "/coluna/excluir"
+
+<ScriptPage Title="Excluir coluna" Request="_request"
+            Description="Remove uma coluna e seus dados.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Coluna</label>
+            <ColumnNameInput @bind-Value="_request.ColumnName" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Escolha ou digite" />
+        </div>
+        <label class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="_request.DropDefaultConstraint" />
+            Remover automaticamente a constraint DEFAULT da coluna
+        </label>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) se a coluna não existir.</li>
+            <li>Falha se a coluna for usada em índice, PK/UNIQUE ou chave estrangeira.</li>
+            <li>Localiza a constraint DEFAULT pelo catálogo (qualquer nome) e remove antes da coluna — ou falha, se a opção estiver desmarcada.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropColumnRequest _request = new();
+}

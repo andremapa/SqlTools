@@ -1,0 +1,65 @@
+@page "/lote"
+@implements IDisposable
+@inject ScriptSession Session
+
+<PageTitle>Script em lote · SqlTools</PageTitle>
+
+<div class="mb-3">
+    <h1 class="h3 mb-1">Script em lote</h1>
+    <p class="text-muted mb-0">
+        Junte várias operações em um único arquivo. Use "+ Adicionar ao lote" nas páginas de operação.
+        Cada operação é um bloco independente (separado por GO) com suas próprias validações.
+    </p>
+</div>
+
+@if (Session.Batch.Count == 0)
+{
+    <div class="alert alert-info">
+        Nenhuma operação no lote ainda. Monte uma operação (ex.: <a href="tabela/criar">Criar tabela</a>)
+        e clique em <strong>+ Adicionar ao lote</strong>.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-xxl-4 col-xl-5">
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <strong class="me-auto">Operações (@Session.Batch.Count)</strong>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="Session.ClearBatch">Limpar</button>
+                </div>
+                <ul class="list-group list-group-flush">
+                    @for (var i = 0; i < Session.Batch.Count; i++)
+                    {
+                        var index = i;
+                        <li class="list-group-item d-flex align-items-center gap-2">
+                            <span class="badge text-bg-secondary">@(index + 1)</span>
+                            <span class="me-auto small">@Session.Batch[index].Describe()</span>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" title="Subir" disabled="@(index == 0)"
+                                        @onclick="() => Session.Move(index, -1)">↑</button>
+                                <button class="btn btn-outline-secondary" title="Descer" disabled="@(index == Session.Batch.Count - 1)"
+                                        @onclick="() => Session.Move(index, 1)">↓</button>
+                                <button class="btn btn-outline-danger" title="Remover" @onclick="() => Session.RemoveAt(index)">✕</button>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+            <p class="small text-muted mt-2">
+                Dica: a ordem importa — crie tabelas antes das chaves estrangeiras que apontam para elas.
+            </p>
+        </div>
+        <div class="col-xxl-8 col-xl-7">
+            <ScriptPanel Requests="Session.Batch.ToList()" />
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Session.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnChanged;
+}

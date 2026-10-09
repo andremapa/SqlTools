@@ -1,0 +1,43 @@
+@{
+    var info = Column.TypeInfo;
+}
+@switch (info?.ArgumentKind)
+{
+    case TypeArgumentKind.Length:
+        <input type="number" class="form-control form-control-sm" min="1" max="@info.MaxLength" title="Tamanho"
+               placeholder="@info.DefaultLength" @bind="Column.Length" @bind:event="oninput" />
+        break;
+
+    case TypeArgumentKind.LengthOrMax:
+        <div class="input-group input-group-sm flex-nowrap">
+            <input type="number" class="form-control" min="1" max="@info.MaxLength" title="Tamanho"
+                   placeholder="@info.DefaultLength" disabled="@Column.IsMax" @bind="Column.Length" @bind:event="oninput" />
+            <label class="input-group-text gap-1" title="Tamanho máximo (MAX)">
+                <input type="checkbox" class="form-check-input mt-0" @bind="Column.IsMax" /> MAX
+            </label>
+        </div>
+        break;
+
+    case TypeArgumentKind.PrecisionScale:
+        <div class="input-group input-group-sm flex-nowrap">
+            <input type="number" class="form-control" min="1" max="38" title="Precisão" placeholder="p"
+                   @bind="Column.Precision" @bind:event="oninput" />
+            <span class="input-group-text">,</span>
+            <input type="number" class="form-control" min="0" max="38" title="Escala" placeholder="s"
+                   @bind="Column.Scale" @bind:event="oninput" />
+        </div>
+        break;
+
+    case TypeArgumentKind.FractionalSeconds:
+        <input type="number" class="form-control form-control-sm" min="0" max="7" title="Precisão das frações de segundo (0-7)"
+               @bind="Column.FractionalSeconds" @bind:event="oninput" />
+        break;
+
+    default:
+        <span class="text-muted small">—</span>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public ColumnDefinition Column { get; set; } = default!;
+}

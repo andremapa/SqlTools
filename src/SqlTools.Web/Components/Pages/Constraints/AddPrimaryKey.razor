@@ -1,0 +1,36 @@
+@page "/constraint/pk"
+
+<ScriptPage Title="Adicionar chave primária" Request="_request"
+            Description="Cria a constraint PRIMARY KEY em uma tabela existente.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Colunas</label>
+            <ColumnListInput @bind-Value="_request.Columns" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Ex.: Id  ou  PedidoId, Item" />
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-7">
+                <label class="form-label">Nome da constraint</label>
+                <input class="form-control" @bind="_request.ConstraintName" @bind:event="oninput" placeholder="@($"PK_{_request.Table}")" />
+            </div>
+            <div class="col-sm-5">
+                <label class="form-check">
+                    <input type="checkbox" class="form-check-input" @bind="_request.Clustered" /> CLUSTERED
+                </label>
+            </div>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela ou alguma coluna não existir.</li>
+            <li>Ignora (sem erro) se a PK com esse nome já existir.</li>
+            <li>Falha se a tabela já tiver outra PK ou se o nome estiver em uso por outro objeto.</li>
+            <li>Falha se alguma coluna aceitar NULL.</li>
+            <li>CLUSTERED: falha se a tabela já tiver índice clustered.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddPrimaryKeyRequest _request = new();
+}

@@ -1,0 +1,58 @@
+@inherits ConnectionAwareComponent
+
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <label class="form-label">Schema</label>
+        <input class="form-control" list="@SchemaListId" value="@Schema" @oninput="OnSchemaInput" />
+        <datalist id="@SchemaListId">
+            @foreach (var schema in Connection.Schemas)
+            {
+                <option value="@schema" />
+            }
+        </datalist>
+    </div>
+    <div class="col-sm-8">
+        <label class="form-label">@Label</label>
+        <input class="form-control" list="@TableListAttribute" value="@Table" placeholder="@Placeholder" @oninput="OnTableInput" />
+        @if (!WarnIfExists)
+        {
+            <datalist id="@ListId">
+                @foreach (var table in Connection.TablesIn(Schema))
+                {
+                    <option value="@table" />
+                }
+            </datalist>
+        }
+        @if (Missing)
+        {
+            <div class="form-text text-warning-emphasis">Não existe no banco conectado. O script vai acusar o erro ao ser executado.</div>
+        }
+        @if (WarnIfExists && Exists)
+        {
+            <div class="form-text text-warning-emphasis">Já existe no banco conectado: o script apenas informará e não alterará nada.</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Schema { get; set; } = "dbo";
+    [Parameter] public EventCallback<string> SchemaChanged { get; set; }
+    [Parameter] public string Table { get; set; } = "";
+    [Parameter] public EventCallback<string> TableChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Tabela";
+
+    /// <summary>Tabela nova (Criar tabela): em vez de listar as existentes, avisa se o nome já existe.</summary>
+    [Parameter] public bool WarnIfExists { get; set; }
+
+    private string SchemaListId => ListId + "s";
+    private string? TableListAttribute => WarnIfExists ? null : ListId;
+    private string Placeholder => Connection.IsConnected && !WarnIfExists ? "Escolha ou digite" : "Ex.: Cliente";
+
+    private bool Known => Connection.IsConnected && !string.IsNullOrWhiteSpace(Table);
+    private bool Exists => Known && Connection.Find(Schema, Table) is not null;
+    private bool Missing => Known && !WarnIfExists && Connection.Find(Schema, Table) is null;
+
+    private Task OnSchemaInput(ChangeEventArgs e) => SchemaChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+
+    private Task OnTableInput(ChangeEventArgs e) => TableChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+}

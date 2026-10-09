@@ -1,0 +1,161 @@
+@page "/tabela/criar"
+
+<ScriptPage Title="Criar tabela" Request="_request" Wide="true"
+            Description="Defina as colunas e a chave primária. O script só cria a tabela se ela ainda não existir.">
+    <ChildContent>
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <TableFields Request="_request" WarnIfExists="true" />
+            </div>
+            <div class="col-md-6 d-flex flex-wrap gap-3 align-items-center">
+                <label class="form-check mb-0">
+                    <input type="checkbox" class="form-check-input" @bind="_request.CreateSchemaIfMissing" />
+                    Criar schema se não existir
+                </label>
+                <label class="form-check mb-0">
+                    <input type="checkbox" class="form-check-input" @bind="_request.PrimaryKeyClustered" />
+                    PK clustered
+                </label>
+                <input class="form-control form-control-sm w-auto" @bind="_request.PrimaryKeyName" @bind:event="oninput"
+                       placeholder="@($"Nome da PK: PK_{_request.Table}")" />
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle column-grid">
+                <thead>
+                    <tr>
+                        <th title="Faz parte da chave primária">PK</th>
+                        <th>Coluna</th>
+                        <th>Tipo</th>
+                        <th>Tamanho / precisão</th>
+                        <th>NULL</th>
+                        <th>IDENTITY</th>
+                        <th>Valor padrão (expressão SQL)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var column in _request.Columns)
+                    {
+                        <tr @key="column">
+                            <td>
+                                <input type="checkbox" class="form-check-input" checked="@IsPrimaryKey(column)"
+                                       @onchange="e => TogglePrimaryKey(column, (bool)e.Value!)" />
+                            </td>
+                            <td>
+                                <input class="form-control form-control-sm" value="@column.Name" placeholder="Nome"
+                                       @oninput="e => Rename(column, e.Value?.ToString())" />
+                            </td>
+                            <td class="type-cell"><TypeSelect Column="column" Small="true" /></td>
+                            <td class="args-cell"><TypeArgsFields Column="column" /></td>
+                            <td>
+                                <input type="checkbox" class="form-check-input" @bind="column.IsNullable"
+                                       disabled="@IsPrimaryKey(column)" />
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1 align-items-center">
+                                    <input type="checkbox" class="form-check-input" checked="@column.IsIdentity"
+                                           @onchange="e => SetIdentity(column, (bool)e.Value!)" />
+                                    @if (column.IsIdentity)
+                                    {
+                                        <input type="number" class="form-control form-control-sm narrow" title="Início" @bind="column.IdentitySeed" />
+                                        <input type="number" class="form-control form-control-sm narrow" title="Incremento" @bind="column.IdentityIncrement" />
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <input class="form-control form-control-sm font-monospace" @bind="column.DefaultExpression" @bind:event="oninput"
+                                       placeholder="Ex.: 0, GETDATE()" disabled="@column.IsIdentity" />
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger" title="Remover coluna" @onclick="() => Remove(column)">✕</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" @onclick="AddColumn">+ Coluna</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="AddAuditColumns" title="Adiciona CriadoEm e AtualizadoEm">+ Colunas de auditoria</button>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Cria o schema, se não existir (opcional) — ou falha se ele não existir.</li>
+            <li>Ignora (sem erro) se a tabela já existir: o script pode ser reexecutado.</li>
+            <li>Falha se já existir outro objeto (view, procedure…) com o mesmo nome.</li>
+            <li>Falha se o nome da PK ou de alguma constraint default já estiver em uso.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly CreateTableRequest _request = new()
+    {
+        Columns =
+        [
+            new ColumnDefinition { Name = "Id", DataType = "INT", IsNullable = false, IsIdentity = true },
+            new ColumnDefinition { Name = "Nome", DataType = "NVARCHAR", Length = 100, IsNullable = false },
+        ],
+        PrimaryKeyColumns = ["Id"],
+    };
+
+    private bool IsPrimaryKey(ColumnDefinition column) =>
+        column.Name.Length > 0 && _request.PrimaryKeyColumns.Contains(column.Name, StringComparer.OrdinalIgnoreCase);
+
+    private void TogglePrimaryKey(ColumnDefinition column, bool isKey)
+    {
+        _request.PrimaryKeyColumns.RemoveAll(c => c.Equals(column.Name, StringComparison.OrdinalIgnoreCase));
+        if (isKey && column.Name.Length > 0)
+        {
+            // Mantém a ordem das colunas da PK igual à ordem na tabela.
+            _request.PrimaryKeyColumns.Add(column.Name);
+            _request.PrimaryKeyColumns = _request.Columns
+                .Where(c => _request.PrimaryKeyColumns.Contains(c.Name, StringComparer.OrdinalIgnoreCase))
+                .Select(c => c.Name)
+                .ToList();
+            column.IsNullable = false;
+        }
+    }
+
+    private void Rename(ColumnDefinition column, string? newName)
+    {
+        var index = _request.PrimaryKeyColumns.FindIndex(c => c.Equals(column.Name, StringComparison.OrdinalIgnoreCase));
+        column.Name = newName ?? "";
+        if (index >= 0)
+            _request.PrimaryKeyColumns[index] = column.Name;
+    }
+
+    private void SetIdentity(ColumnDefinition column, bool isIdentity)
+    {
+        column.IsIdentity = isIdentity;
+        if (isIdentity)
+        {
+            column.IsNullable = false;
+            column.DefaultExpression = null;
+        }
+    }
+
+    private void AddColumn() => _request.Columns.Add(new ColumnDefinition { DataType = "NVARCHAR", Length = 100 });
+
+    private void AddAuditColumns()
+    {
+        foreach (var name in new[] { "CriadoEm", "AtualizadoEm" })
+        {
+            if (_request.Columns.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            _request.Columns.Add(name == "CriadoEm"
+                ? new ColumnDefinition { Name = name, DataType = "DATETIME2", FractionalSeconds = 3, IsNullable = false, DefaultExpression = "SYSDATETIME()" }
+                : new ColumnDefinition { Name = name, DataType = "DATETIME2", FractionalSeconds = 3, IsNullable = true });
+        }
+    }
+
+    private void Remove(ColumnDefinition column)
+    {
+        _request.Columns.Remove(column);
+        _request.PrimaryKeyColumns.RemoveAll(c => c.Equals(column.Name, StringComparison.OrdinalIgnoreCase));
+    }
+}

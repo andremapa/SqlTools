@@ -1,0 +1,291 @@
+@page "/admin/usuarios"
+@attribute [Authorize(Roles = UserAdminService.AdminRole)]
+@inject UserAdminService Admin
+@inject AuthenticationStateProvider Authentication
+
+<PageTitle>Usuários · SqlTools</PageTitle>
+
+<div class="d-flex align-items-start mb-3">
+    <div class="me-auto">
+        <h1 class="h3 mb-1">Usuários</h1>
+        <p class="text-muted mb-0">Cadastre quem pode usar o SqlTools e gerencie os acessos.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="ToggleForm">
+        <Icon Name="plus" Size="1rem" /> @(_showForm ? "Fechar" : "Novo usuário")
+    </button>
+</div>
+
+@if (_message is not null)
+{
+    <div class="alert @(_messageIsError ? "alert-danger" : "alert-success") py-2 d-flex">
+        <span class="me-auto">@_message</span>
+        <button type="button" class="btn-close" aria-label="Fechar" @onclick="() => _message = null"></button>
+    </div>
+}
+
+@if (_showForm)
+{
+    <div class="card mb-4">
+        <div class="card-header"><strong>Novo usuário</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Nome</label>
+                    <input class="form-control" @bind="_name" @bind:event="oninput" autocomplete="off" />
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Nome de usuário</label>
+                    <input class="form-control" @bind="_username" @bind:event="oninput" autocomplete="off" />
+                    <div class="form-text">Usado para entrar. Letras, números, ponto, hífen ou sublinhado.</div>
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">E-mail</label>
+                    <input class="form-control" type="email" @bind="_email" @bind:event="oninput" autocomplete="off" />
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Senha inicial</label>
+                    <input class="form-control" type="password" @bind="_password" @bind:event="oninput" autocomplete="new-password" />
+                    <div class="form-text">Mín. 8 caracteres, com minúscula e número.</div>
+                </div>
+                <div class="col-md-6 col-xl-4 d-flex align-items-start pt-xl-4">
+                    <label class="form-check mt-xl-2">
+                        <input type="checkbox" class="form-check-input" @bind="_isAdmin" />
+                        Administrador
+                    </label>
+                </div>
+                <div class="col-md-12 col-xl-4 d-flex align-items-start pt-xl-4">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync">Criar usuário</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0 user-table">
+            <thead>
+                <tr>
+                    <th>Usuário</th>
+                    <th>Perfil</th>
+                    <th>Status</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_users is null)
+                {
+                    <tr><td colspan="4" class="text-muted p-4">Carregando…</td></tr>
+                }
+                else
+                {
+                    @foreach (var user in _users)
+                    {
+                        var isMe = user.Id == _currentUserId;
+                        <tr @key="user.Id" class="@(user.IsDisabled ? "row-disabled" : null)">
+                            <td>
+                                <div class="fw-semibold">@(string.IsNullOrWhiteSpace(user.Name) ? user.Email : user.Name)@if (isMe) { <span class="badge text-bg-light ms-2">você</span> }</div>
+                                <div class="small text-muted">
+                                    @if (!user.UserName.Equals(user.Email, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <span>@@@user.UserName · </span>
+                                    }
+                                    @user.Email
+                                </div>
+                            </td>
+                            <td>
+                                @if (user.IsAdmin)
+                                {
+                                    <span class="badge text-bg-primary">Administrador</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-soft">Usuário</span>
+                                }
+                            </td>
+                            <td>
+                                @if (user.IsDisabled)
+                                {
+                                    <span class="badge bg-secondary">Desativado</span>
+                                }
+                                else if (user.IsLockedOut)
+                                {
+                                    <span class="badge badge-warn" title="Bloqueio temporário por tentativas de senha erradas">Bloqueado</span>
+                                }
+                                else
+                                {
+                                    <span class="text-success small"><span class="status-dot me-1"></span>Ativo</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" disabled="@(_busy || (isMe && user.IsAdmin))"
+                                            @onclick="() => ToggleAdminAsync(user)">
+                                        @(user.IsAdmin ? "Remover admin" : "Tornar admin")
+                                    </button>
+                                    <button class="btn btn-outline-secondary" disabled="@(_busy || isMe)"
+                                            @onclick="() => ToggleDisabledAsync(user)">
+                                        @(user.IsDisabled ? "Ativar" : "Desativar")
+                                    </button>
+                                    <button class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => OpenPanel(user, Panel.Edit)">Editar</button>
+                                    <button class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => OpenPanel(user, Panel.Password)">Senha</button>
+                                    <button class="btn btn-outline-danger" disabled="@(_busy || isMe)" @onclick="() => OpenPanel(user, Panel.Delete)">Excluir</button>
+                                </div>
+                            </td>
+                        </tr>
+
+                        @if (_panelUser == user.Id)
+                        {
+                            <tr class="panel-row">
+                                <td colspan="4">
+                                    @if (_panel == Panel.Edit)
+                                    {
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-md-6 col-xl-3">
+                                                <label class="form-label">Nome</label>
+                                                <input class="form-control form-control-sm" @bind="_editName" @bind:event="oninput" autocomplete="off" />
+                                            </div>
+                                            <div class="col-md-6 col-xl-3">
+                                                <label class="form-label">Nome de usuário</label>
+                                                <input class="form-control form-control-sm" @bind="_editUsername" @bind:event="oninput" autocomplete="off" />
+                                            </div>
+                                            <div class="col-md-6 col-xl-3">
+                                                <label class="form-label">E-mail</label>
+                                                <input class="form-control form-control-sm" type="email" @bind="_editEmail" @bind:event="oninput" autocomplete="off" />
+                                            </div>
+                                            <div class="col-md-6 col-xl-3 d-flex gap-2">
+                                                <button class="btn btn-sm btn-primary" disabled="@_busy" @onclick="() => SaveEditAsync(user)">Salvar</button>
+                                                <button class="btn btn-sm btn-link" @onclick="ClosePanel">Cancelar</button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (_panel == Panel.Password)
+                                    {
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <span class="small">Nova senha para <strong>@user.Email</strong>:</span>
+                                            <input class="form-control form-control-sm w-auto" type="password" autocomplete="new-password"
+                                                   @bind="_newPassword" @bind:event="oninput" @onkeydown="e => OnPasswordKey(e, user)" />
+                                            <button class="btn btn-sm btn-primary" disabled="@(_busy || string.IsNullOrEmpty(_newPassword))"
+                                                    @onclick="() => ResetPasswordAsync(user)">Salvar senha</button>
+                                            <button class="btn btn-sm btn-link" @onclick="ClosePanel">Cancelar</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <span class="small">Excluir <strong>@user.Email</strong> permanentemente? Isso não pode ser desfeito.</span>
+                                            <button class="btn btn-sm btn-danger" disabled="@_busy"
+                                                    @onclick="() => DeleteAsync(user)">Sim, excluir</button>
+                                            <button class="btn btn-sm btn-link" @onclick="ClosePanel">Cancelar</button>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private enum Panel { None, Edit, Password, Delete }
+
+    private List<UserRow>? _users;
+    private string _currentUserId = "";
+    private bool _busy;
+
+    private bool _showForm;
+    private string _name = "", _username = "", _email = "", _password = "";
+    private bool _isAdmin;
+
+    private string? _panelUser;
+    private Panel _panel;
+    private string _newPassword = "";
+    private string _editName = "", _editUsername = "", _editEmail = "";
+
+    private string? _message;
+    private bool _messageIsError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        await LoadAsync();
+        _showForm = _users!.Count <= 1;
+    }
+
+    private async Task LoadAsync() => _users = await Admin.ListAsync();
+
+    private void ToggleForm() => _showForm = !_showForm;
+
+    private void OpenPanel(UserRow user, Panel panel)
+    {
+        _panelUser = user.Id;
+        _panel = panel;
+        _newPassword = "";
+        _editName = user.Name;
+        _editUsername = user.UserName;
+        _editEmail = user.Email;
+    }
+
+    private void ClosePanel()
+    {
+        _panelUser = null;
+        _panel = Panel.None;
+        _newPassword = "";
+    }
+
+    private async Task CreateAsync()
+    {
+        await RunAsync(() => Admin.CreateAsync(_name, _username, _email, _password, _isAdmin), $"Usuário {_username.Trim()} criado.", onSuccess: () =>
+        {
+            _name = _username = _email = _password = "";
+            _isAdmin = false;
+            _showForm = false;
+        });
+    }
+
+    private Task SaveEditAsync(UserRow user) =>
+        RunAsync(() => Admin.UpdateAsync(user.Id, _editName, _editUsername, _editEmail), $"Cadastro de {_editUsername.Trim()} atualizado.", onSuccess: ClosePanel);
+
+    private Task ToggleAdminAsync(UserRow user) =>
+        RunAsync(() => Admin.SetAdminAsync(user.Id, !user.IsAdmin, _currentUserId),
+            user.IsAdmin ? $"{user.Email} não é mais administrador." : $"{user.Email} agora é administrador.");
+
+    private Task ToggleDisabledAsync(UserRow user) =>
+        RunAsync(() => Admin.SetDisabledAsync(user.Id, !user.IsDisabled, _currentUserId),
+            user.IsDisabled ? $"{user.Email} foi reativado." : $"{user.Email} foi desativado.");
+
+    private Task ResetPasswordAsync(UserRow user) =>
+        RunAsync(() => Admin.ResetPasswordAsync(user.Id, _newPassword), $"Senha de {user.Email} redefinida.", onSuccess: ClosePanel);
+
+    private Task DeleteAsync(UserRow user) =>
+        RunAsync(() => Admin.DeleteAsync(user.Id, _currentUserId), $"{user.Email} foi excluído.", onSuccess: ClosePanel);
+
+    private async Task OnPasswordKey(KeyboardEventArgs e, UserRow user)
+    {
+        if (e.Key == "Enter" && !_busy && !string.IsNullOrEmpty(_newPassword))
+            await ResetPasswordAsync(user);
+    }
+
+    /// <summary>Executa uma operação, mostra o resultado e recarrega a lista.</summary>
+    private async Task RunAsync(Func<Task<OpResult>> operation, string successMessage, Action? onSuccess = null)
+    {
+        _busy = true;
+        try
+        {
+            var result = await operation();
+            _messageIsError = !result.Ok;
+            _message = result.Ok ? successMessage : result.Error;
+            if (result.Ok)
+                onSuccess?.Invoke();
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

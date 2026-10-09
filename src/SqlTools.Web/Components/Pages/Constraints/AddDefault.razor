@@ -1,0 +1,33 @@
+@page "/constraint/default"
+
+<ScriptPage Title="Adicionar constraint DEFAULT" Request="_request"
+            Description="Valor usado quando um INSERT não informa a coluna.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Coluna</label>
+            <ColumnNameInput @bind-Value="_request.ColumnName" Schema="@_request.Schema" Table="@_request.Table" Placeholder="Escolha ou digite" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Valor padrão (expressão SQL)</label>
+            <input class="form-control font-monospace" @bind="_request.Expression" @bind:event="oninput"
+                   placeholder="Ex.: 0, GETDATE(), N'Ativo', NEWID()" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Nome da constraint</label>
+            <input class="form-control" @bind="_request.ConstraintName" @bind:event="oninput"
+                   placeholder="@($"DF_{_request.Table}_{_request.ColumnName}")" />
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela ou a coluna não existirem.</li>
+            <li>Ignora (sem erro) se a constraint já existir.</li>
+            <li>Falha se a coluna já tiver outra constraint DEFAULT ou se o nome estiver em uso.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddDefaultRequest _request = new();
+}
