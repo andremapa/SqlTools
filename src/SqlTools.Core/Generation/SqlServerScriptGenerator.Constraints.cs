@@ -16,15 +16,16 @@ public sealed partial class SqlServerScriptGenerator
                 SuccessMessage = $"Chave primária {name} criada em {r.TableDisplay}.",
                 Action = w =>
                 {
-                    // SQL dinâmico: o SQL Server rejeita PK sobre coluna NULL já na compilação do lote,
-                    // o que impediria as verificações acima de executarem.
                     var sql = $"ALTER TABLE {t} ADD CONSTRAINT {SqlText.Quote(name)} PRIMARY KEY " +
                               $"{(r.Clustered ? "CLUSTERED" : "NONCLUSTERED")} ({SqlText.QuoteList(r.Columns)});";
-                    w.Line($"EXEC sp_executesql {SqlText.Literal(sql)};");
+
+                    // Com Safe guard, SQL dinâmico: o SQL Server rejeita PK sobre coluna NULL já na compilação do lote,
+                    // o que impediria a validação "coluna aceita NULL" de executar. Sem Safe guard, o comando vai direto.
+                    w.Line(w.SafeGuard ? $"EXEC sp_executesql {SqlText.Literal(sql)};" : sql);
                 },
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.ConstraintExists(t, name, "PK"), $"Chave primária {name} já existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.ConstraintExists(t, name, "PK"), $"Chave primária {name} já existe. Nenhuma alteração realizada.", Catalog.ConstraintMissing(t, name, "PK"))
             .Error(Catalog.TableHasPrimaryKey(t), $"Tabela {r.TableDisplay} já possui outra chave primária.")
             .Error(Catalog.ObjectExists(r.QualifiedInSchema(name)), NameInUseMessage(r, name));
 
@@ -75,7 +76,7 @@ public sealed partial class SqlServerScriptGenerator
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
             .Error(Catalog.TableMissing(rt), $"Tabela referenciada {r.ReferencedDisplay} não existe.")
-            .Skip(Catalog.ConstraintExists(t, name, "F"), $"Chave estrangeira {name} já existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.ConstraintExists(t, name, "F"), $"Chave estrangeira {name} já existe. Nenhuma alteração realizada.", Catalog.ConstraintMissing(t, name, "F"))
             .Error(Catalog.ObjectExists(r.QualifiedInSchema(name)), NameInUseMessage(r, name));
 
         AddColumnsMustExist(script, r, t, r.Columns);
@@ -101,7 +102,7 @@ public sealed partial class SqlServerScriptGenerator
                                      $"{(r.Clustered ? "CLUSTERED" : "NONCLUSTERED")} ({SqlText.QuoteList(r.Columns)});"),
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.ConstraintExists(t, name, "UQ"), $"Constraint UNIQUE {name} já existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.ConstraintExists(t, name, "UQ"), $"Constraint UNIQUE {name} já existe. Nenhuma alteração realizada.", Catalog.ConstraintMissing(t, name, "UQ"))
             .Error(Catalog.ObjectExists(r.QualifiedInSchema(name)), NameInUseMessage(r, name));
 
         AddColumnsMustExist(script, r, t, r.Columns);
@@ -123,7 +124,7 @@ public sealed partial class SqlServerScriptGenerator
                                      $"ADD CONSTRAINT {SqlText.Quote(name)} CHECK ({r.Expression.Trim()});"),
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.ConstraintExists(t, name, "C"), $"Constraint CHECK {name} já existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.ConstraintExists(t, name, "C"), $"Constraint CHECK {name} já existe. Nenhuma alteração realizada.", Catalog.ConstraintMissing(t, name, "C"))
             .Error(Catalog.ObjectExists(r.QualifiedInSchema(name)), NameInUseMessage(r, name));
     }
 
@@ -141,7 +142,7 @@ public sealed partial class SqlServerScriptGenerator
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
             .Error(Catalog.ColumnMissing(t, column), $"Coluna {r.TableDisplay}.{column} não existe.")
-            .Skip(Catalog.ConstraintExists(t, name, "D"), $"Constraint DEFAULT {name} já existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.ConstraintExists(t, name, "D"), $"Constraint DEFAULT {name} já existe. Nenhuma alteração realizada.", Catalog.ConstraintMissing(t, name, "D"))
             .Error(Catalog.ColumnHasDefault(t, column), $"Coluna {r.TableDisplay}.{column} já possui outra constraint DEFAULT.")
             .Error(Catalog.ObjectExists(r.QualifiedInSchema(name)), NameInUseMessage(r, name));
     }
@@ -159,7 +160,8 @@ public sealed partial class SqlServerScriptGenerator
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
             .Skip(Catalog.ConstraintMissing(t, name, types),
-                $"Constraint {name} não existe em {r.TableDisplay}. Nenhuma alteração realizada.")
+                $"Constraint {name} não existe em {r.TableDisplay}. Nenhuma alteração realizada.",
+                Catalog.ConstraintExists(t, name, types))
             .Error(Catalog.KeyReferencedByForeignKey(t, name),
                 $"Constraint {name} é referenciada por chaves estrangeiras. Remova-as antes.");
     }

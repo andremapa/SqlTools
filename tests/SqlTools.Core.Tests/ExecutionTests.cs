@@ -16,7 +16,7 @@ public class ExecutionTests(LocalDbFixture db) : IClassFixture<LocalDbFixture>
 
     private List<string> Run(ScriptRequest request, bool useTransaction = true)
     {
-        var result = _generator.Generate(request, new ScriptOptions { UseTransaction = useTransaction });
+        var result = _generator.Generate(request, new ScriptOptions { UseTransaction = useTransaction, AddPrintCommands = true, SafeGuard = true });
         Assert.True(result.IsValid, string.Join("; ", result.Errors));
         return db.Run(result.Script);
     }
@@ -270,7 +270,7 @@ public class ExecutionTests(LocalDbFixture db) : IClassFixture<LocalDbFixture>
         [
             new CreateTableRequest { Table = "BatchTest", Columns = [new() { Name = "RefId", IsNullable = false }] },
             new AddForeignKeyRequest { Table = "BatchTest", Columns = ["RefId"], ReferencedTable = "NaoExiste", ReferencedColumns = ["Id"] },
-        ], new ScriptOptions());
+        ], new ScriptOptions { UseTransaction = true, SafeGuard = true });
 
         var ex = Assert.Throws<SqlException>(() => db.Run(result.Script));
 

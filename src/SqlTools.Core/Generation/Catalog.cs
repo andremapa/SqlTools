@@ -16,6 +16,26 @@ internal static class Catalog
 
     public static string ObjectExists(string qualifiedName) => $"OBJECT_ID({SqlText.Literal(qualifiedName)}) IS NOT NULL";
 
+    public static string ViewExists(string view) => $"OBJECT_ID({SqlText.Literal(view)}, N'V') IS NOT NULL";
+
+    public static string ViewMissing(string view) => $"OBJECT_ID({SqlText.Literal(view)}, N'V') IS NULL";
+
+    public static string TriggerExists(string trigger) => $"OBJECT_ID({SqlText.Literal(trigger)}, N'TR') IS NOT NULL";
+
+    public static string TriggerMissing(string trigger) => $"OBJECT_ID({SqlText.Literal(trigger)}, N'TR') IS NULL";
+
+    /// <summary>Existe um objeto com esse nome, mas de outro tipo (ex.: uma tabela com o nome da view).</summary>
+    public static string ObjectOfOtherType(string name, string type) =>
+        $"OBJECT_ID({SqlText.Literal(name)}) IS NOT NULL AND OBJECT_ID({SqlText.Literal(name)}, N'{type}') IS NULL";
+
+    /// <summary>Alvo de uma trigger: tabela ou view.</summary>
+    public static string TableOrViewMissing(string name) =>
+        $"OBJECT_ID({SqlText.Literal(name)}, N'U') IS NULL AND OBJECT_ID({SqlText.Literal(name)}, N'V') IS NULL";
+
+    /// <summary>A trigger com esse nome existe, mas pertence a outra tabela/view.</summary>
+    public static string TriggerOnOtherParent(string trigger, string parent) =>
+        $"EXISTS (SELECT 1 FROM sys.triggers WHERE object_id = OBJECT_ID({SqlText.Literal(trigger)}, N'TR') AND parent_id <> OBJECT_ID({SqlText.Literal(parent)}))";
+
     public static string SchemaMissing(string schema) => $"SCHEMA_ID({SqlText.Literal(schema.Trim())}) IS NULL";
 
     public static string ColumnExists(string table, string column) =>

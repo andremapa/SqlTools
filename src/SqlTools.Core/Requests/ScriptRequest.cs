@@ -29,11 +29,21 @@ public abstract class ScriptRequest
         var errors = new List<string>();
         if (SqlText.ValidateIdentifier(Schema, "Schema") is { } schemaError)
             errors.Add(schemaError);
-        if (SqlText.ValidateIdentifier(Table, "Tabela") is { } tableError)
+        if (SqlText.ValidateIdentifier(Table, ObjectLabel) is { } tableError)
             errors.Add(tableError);
         errors.AddRange(ValidateCore());
         return errors;
     }
+
+    /// <summary>
+    /// O script é composto de vários lotes (DROP, GO, CREATE, GO), que não cabem dentro do TRY da opção global
+    /// "Transação com rollback", então essa opção não se aplica a ele. A proteção equivalente, que desfaz o DROP se o
+    /// CREATE falhar, é a opção "Safe guard".
+    /// </summary>
+    public virtual bool HasOwnTransaction => false;
+
+    /// <summary>Como o objeto principal da operação é chamado nas mensagens (tabela, view, trigger...).</summary>
+    protected virtual string ObjectLabel => "Tabela";
 
     protected abstract IEnumerable<string> ValidateCore();
 

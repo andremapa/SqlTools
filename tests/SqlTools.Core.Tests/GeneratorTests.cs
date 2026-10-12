@@ -22,12 +22,26 @@ public class GeneratorTests
     };
 
     [Fact]
+    public void Options_TransactionAndHeaderAreOffByDefault()
+    {
+        var options = new ScriptOptions();
+
+        Assert.False(options.UseTransaction);
+        Assert.False(options.IncludeHeader);
+
+        var script = _generator.Generate(ClienteTable(), options).Script;
+        Assert.DoesNotContain("BEGIN TRY", script);
+        Assert.DoesNotContain("-- Operação", script);
+    }
+
+    [Fact]
     public void CreateTable_ChecksExistenceAndWritesDefinition()
     {
-        var result = _generator.Generate(ClienteTable(), NoHeader);
+        var result = _generator.Generate(ClienteTable(), new ScriptOptions { UseTransaction = true });
 
         Assert.True(result.IsValid, string.Join("; ", result.Errors));
-        Assert.Contains("IF OBJECT_ID(N'[dbo].[Cliente]', N'U') IS NOT NULL", result.Script);
+        // Padrão (sem Safe guard e sem PRINT): só a verificação "a tabela não existe".
+        Assert.Contains("IF OBJECT_ID(N'[dbo].[Cliente]', N'U') IS NULL", result.Script);
         Assert.Contains("[Id] INT IDENTITY(1,1) NOT NULL,", result.Script);
         Assert.Contains("[Nome] NVARCHAR(100) NOT NULL,", result.Script);
         Assert.Contains("[CriadoEm] DATETIME2(3) NOT NULL CONSTRAINT [DF_Cliente_CriadoEm] DEFAULT (SYSDATETIME()),", result.Script);
@@ -44,7 +58,7 @@ public class GeneratorTests
         var result = _generator.Generate(request, NoHeader);
 
         Assert.Contains("DROP TABLE [dbo].[Tab]]ela'X];", result.Script);
-        Assert.Contains("OBJECT_ID(N'[dbo].[Tab]]ela''X]', N'U') IS NULL", result.Script);
+        Assert.Contains("OBJECT_ID(N'[dbo].[Tab]]ela''X]', N'U') IS NOT NULL", result.Script);
     }
 
     [Fact]
@@ -52,7 +66,7 @@ public class GeneratorTests
     {
         var request = new AddColumnRequest { Table = "Taxa%", Column = new() { Name = "Valor", IsNullable = false } };
 
-        var result = _generator.Generate(request, NoHeader);
+        var result = _generator.Generate(request, new ScriptOptions { SafeGuard = true });
 
         Assert.Contains("RAISERROR(N'Tabela dbo.Taxa%% não existe.', 16, 1);", result.Script);
     }
@@ -127,7 +141,7 @@ public class GeneratorTests
             new CreateIndexRequest { Table = "Cliente", Columns = [new("Nome")] },
         };
 
-        var result = _generator.GenerateBatch(requests, new ScriptOptions());
+        var result = _generator.GenerateBatch(requests, new ScriptOptions { IncludeHeader = true });
 
         Assert.True(result.IsValid);
         Assert.Contains("--   1. Criar tabela — dbo.Cliente", result.Script);

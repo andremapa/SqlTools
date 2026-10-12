@@ -28,7 +28,22 @@
                 <input type="checkbox" class="form-check-input" @bind="Session.Options.IncludeHeader" @bind:after="Regenerate" />
                 Cabeçalho
             </label>
+            <label class="form-check mb-0" title="Acrescenta ao script as validações extras (tabela/coluna inexistente, nome em uso, dados que impedem a alteração, dependências...). Sem ela, o script só verifica se o objeto já existe, e o SQL Server acusa qualquer outro problema. Em views e triggers, também desfaz o DROP se o CREATE falhar.">
+                <input type="checkbox" class="form-check-input" @bind="Session.Options.SafeGuard" @bind:after="Regenerate" />
+                Safe guard
+            </label>
+            <label class="form-check mb-0" title="Inclui comandos PRINT que informam o que o script fez (ex.: 'Tabela criada.', 'já existe'). Erros sempre são levantados.">
+                <input type="checkbox" class="form-check-input" @bind="Session.Options.AddPrintCommands" @bind:after="Regenerate" />
+                Adicionar comandos PRINT
+            </label>
         </div>
+        @if (HasOwnTransaction)
+        {
+            <div class="small text-muted mt-2">
+                Views e triggers são vários lotes (<code>DROP</code>, <code>GO</code>, <code>CREATE</code>), então "Transação com rollback" não se aplica a elas.
+                Se o <code>CREATE</code> falhar, a versão antiga só é preservada com o <strong>Safe guard</strong> ligado.
+            </div>
+        }
     </div>
 
     @if (_feedback is not null)
@@ -62,6 +77,8 @@
 
     /// <summary>Várias operações (página de lote).</summary>
     [Parameter] public IReadOnlyList<ScriptRequest>? Requests { get; set; }
+
+    private bool HasOwnTransaction => Request?.HasOwnTransaction == true || Requests?.Any(r => r.HasOwnTransaction) == true;
 
     private ScriptResult _result = ScriptResult.Invalid([]);
     private string? _feedback;

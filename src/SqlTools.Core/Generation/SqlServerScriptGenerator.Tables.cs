@@ -22,7 +22,7 @@ public sealed partial class SqlServerScriptGenerator
                     w.Line($"IF {Catalog.SchemaMissing(r.Schema)}");
                     w.Begin();
                     w.Line($"EXEC({SqlText.Literal($"CREATE SCHEMA {SqlText.Quote(r.Schema)}")});");
-                    w.Line($"PRINT {SqlText.Literal($"Schema {r.Schema.Trim()} criado.")};");
+                    w.Print($"Schema {r.Schema.Trim()} criado.");
                     w.End();
                     w.Line();
                 }
@@ -47,7 +47,7 @@ public sealed partial class SqlServerScriptGenerator
             script.Error(Catalog.SchemaMissing(r.Schema), $"Schema {r.Schema.Trim()} não existe.");
 
         script
-            .Skip(Catalog.TableExists(t), $"Tabela {r.TableDisplay} já existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.TableExists(t), $"Tabela {r.TableDisplay} já existe. Nenhuma alteração realizada.", Catalog.TableMissing(t))
             .Error(Catalog.ObjectExists(t), $"Já existe um objeto que não é tabela chamado {r.TableDisplay}.");
 
         var constraintNames = r.Columns.Where(c => c.HasDefault).Select(c => c.GetDefaultConstraintName(r.Table)).ToList();
@@ -67,7 +67,7 @@ public sealed partial class SqlServerScriptGenerator
                 SuccessMessage = $"Tabela {r.TableDisplay} excluída.",
                 Action = w => w.Line($"DROP TABLE {t};"),
             }
-            .Skip(Catalog.TableMissing(t), $"Tabela {r.TableDisplay} não existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.TableMissing(t), $"Tabela {r.TableDisplay} não existe. Nenhuma alteração realizada.", Catalog.TableExists(t))
             .Error(Catalog.TableReferencedByOtherTables(t),
                 $"Tabela {r.TableDisplay} é referenciada por chaves estrangeiras de outras tabelas. Remova-as antes.");
     }
@@ -88,7 +88,7 @@ public sealed partial class SqlServerScriptGenerator
                 },
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.ColumnExists(t, c.Name), $"Coluna {column} já existe. Nenhuma alteração realizada.");
+            .Skip(Catalog.ColumnExists(t, c.Name), $"Coluna {column} já existe. Nenhuma alteração realizada.", Catalog.ColumnMissing(t, c.Name));
 
         var isRowVersion = c.DataType.Equals("ROWVERSION", StringComparison.OrdinalIgnoreCase);
         if (!c.IsNullable && !c.HasDefault && !c.IsIdentity && !isRowVersion)
@@ -126,9 +126,9 @@ public sealed partial class SqlServerScriptGenerator
             // A checagem de NULLs usa SQL dinâmico: referenciar diretamente uma coluna inexistente
             // em uma tabela existente faria o lote inteiro falhar na compilação.
             var check = $"IF EXISTS (SELECT 1 FROM {t} WHERE {SqlText.Quote(c.Name)} IS NULL) SET @Result = 1;";
-            script.Prelude.Add("DECLARE @HasNulls BIT = 0;");
-            script.Prelude.Add($"IF {Catalog.ColumnExists(t, c.Name)}");
-            script.Prelude.Add($"    EXEC sp_executesql {SqlText.Literal(check)}, N'@Result BIT OUTPUT', @Result = @HasNulls OUTPUT;");
+            script.ExtraPrelude.Add("DECLARE @HasNulls BIT = 0;");
+            script.ExtraPrelude.Add($"IF {Catalog.ColumnExists(t, c.Name)}");
+            script.ExtraPrelude.Add($"    EXEC sp_executesql {SqlText.Literal(check)}, N'@Result BIT OUTPUT', @Result = @HasNulls OUTPUT;");
             script.Error("@HasNulls = 1", $"Coluna {column} possui valores NULL: atualize os dados antes de torná-la NOT NULL.");
         }
 
@@ -149,7 +149,9 @@ public sealed partial class SqlServerScriptGenerator
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
             .Skip($"{Catalog.ColumnMissing(t, oldName)} AND {Catalog.ColumnExists(t, newName)}",
-                $"Coluna {r.TableDisplay}.{oldName} já foi renomeada para {newName}. Nenhuma alteração realizada.")
+                $"Coluna {r.TableDisplay}.{oldName} já foi renomeada para {newName}. Nenhuma alteração realizada.",
+                // inverso de (antiga não existe E nova existe)
+                $"{Catalog.ColumnExists(t, oldName)} OR {Catalog.ColumnMissing(t, newName)}")
             .Error(Catalog.ColumnMissing(t, oldName), $"Coluna {r.TableDisplay}.{oldName} não existe.")
             .Error(Catalog.ColumnExists(t, newName), $"Já existe uma coluna {r.TableDisplay}.{newName}.");
     }
@@ -177,7 +179,7 @@ public sealed partial class SqlServerScriptGenerator
                         w.Begin();
                         w.Line($"SET @Sql = {SqlText.Literal($"ALTER TABLE {t} DROP CONSTRAINT ")} + QUOTENAME(@DefaultConstraint) + N';';");
                         w.Line("EXEC sp_executesql @Sql;");
-                        w.Line("PRINT N'Constraint default ' + @DefaultConstraint + N' removida.';");
+                        w.PrintExpression("N'Constraint default ' + @DefaultConstraint + N' removida.'");
                         w.End();
                         w.Line();
                     }
@@ -185,7 +187,7 @@ public sealed partial class SqlServerScriptGenerator
                 },
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.ColumnMissing(t, name), $"Coluna {column} não existe. Nenhuma alteração realizada.")
+            .Skip(Catalog.ColumnMissing(t, name), $"Coluna {column} não existe. Nenhuma alteração realizada.", Catalog.ColumnExists(t, name))
             .Error(Catalog.ColumnUsedInIndex(t, name), $"Coluna {column} é usada em índice ou PK/UNIQUE. Remova-os antes.")
             .Error(Catalog.ColumnUsedInForeignKey(t, name), $"Coluna {column} é usada em chave estrangeira. Remova-a antes.");
 

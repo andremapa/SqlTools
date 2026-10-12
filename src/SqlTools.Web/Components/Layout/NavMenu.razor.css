@@ -44,6 +44,66 @@
     padding-bottom: 0.3rem;
 }
 
+/* Grupos recolhíveis */
+.nav-group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    width: 100%;
+    height: 2.3rem;
+    padding: 0 1rem;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: #cfe3d8;
+    font-size: 0.9rem;
+    text-align: left;
+}
+
+    .nav-group-toggle:hover {
+        background-color: rgba(255, 255, 255, 0.09);
+        color: #fff;
+    }
+
+    .nav-group-toggle:focus-visible {
+        outline: 2px solid #6ee7b7;
+        outline-offset: -2px;
+    }
+
+    .nav-group-toggle .nav-count {
+        margin-left: auto;
+        font-size: 0.7rem;
+        opacity: 0.55;
+    }
+
+    .nav-group-toggle .chev {
+        display: inline-flex;
+        opacity: 0.7;
+        transition: transform 0.15s ease;
+    }
+
+        .nav-group-toggle .chev.open {
+            transform: rotate(90deg);
+        }
+
+.nav-group.has-active .nav-group-toggle {
+    color: #fff;
+}
+
+    .nav-group.has-active .nav-group-toggle .icon {
+        color: #6ee7b7;
+    }
+
+.nav-sub {
+    margin: 0.1rem 0 0.35rem 1.45rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+    .nav-sub .nav-item {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+
 .nav-item {
     font-size: 0.9rem;
     padding-bottom: 0.1rem;
@@ -88,19 +148,8 @@
     font-weight: 700;
 }
 
-.nav-user {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    padding-bottom: 1.25rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    color: #cfe3d8;
-    font-size: 0.85rem;
-}
-
-.nav-user-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.nav-main {
+    padding-bottom: 1.5rem;
 }
 
 .nav-scrollable {

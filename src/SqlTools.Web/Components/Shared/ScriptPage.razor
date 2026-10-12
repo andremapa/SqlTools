@@ -17,7 +17,11 @@
         {
             <div class="card mt-3 validations">
                 <div class="card-body small">
-                    <div class="fw-semibold mb-1">Validações feitas pelo script no banco</div>
+                    <div class="fw-semibold mb-1">Validações do script no banco</div>
+                    <div class="text-muted mb-2">
+                        Por padrão o script é simples e só verifica se o objeto <strong>já existe</strong> (itens "Ignora..."), o que permite
+                        reexecutá-lo. As demais validações abaixo só entram com a opção <strong>Safe guard</strong>; sem ela, o SQL Server acusa o problema.
+                    </div>
                     @Validations
                 </div>
             </div>

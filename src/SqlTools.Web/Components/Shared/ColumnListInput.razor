@@ -24,6 +24,8 @@
     [Parameter] public string Schema { get; set; } = "";
     [Parameter] public string Table { get; set; } = "";
 
+    protected override (string? Schema, string? Table) TableTarget => (Schema, Table);
+
     private List<string> Available =>
         Connection.ColumnsOf(Schema, Table).Where(c => !Value.Contains(c, StringComparer.OrdinalIgnoreCase)).ToList();
 

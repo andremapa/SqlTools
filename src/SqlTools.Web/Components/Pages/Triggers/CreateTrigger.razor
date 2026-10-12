@@ -1,0 +1,84 @@
+@page "/trigger/criar"
+@implements IDisposable
+@inject DatabaseConnection Connection
+
+<ScriptPage Title="Criar trigger" Request="_request" Wide="true"
+            Description="Cria uma trigger numa tabela ou view. Se já existir uma com esse nome na mesma tabela, a antiga é removida e a nova é criada.">
+    <ChildContent>
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <TableFields Request="_request" Label="Tabela ou view" IncludeViews="true" />
+
+                <div class="mb-3">
+                    <label class="form-label">Nome da trigger</label>
+                    <input class="form-control" @bind="_request.TriggerName" @bind:event="oninput" placeholder="@($"trg_{_request.Table}")" />
+                    @if (ExistingTrigger is { } existing)
+                    {
+                        @if (SameTable(existing))
+                        {
+                            <div class="form-text text-warning-emphasis">Já existe nesta tabela: será removida e recriada com o novo corpo.</div>
+                        }
+                        else
+                        {
+                            <div class="form-text text-danger">Já existe uma trigger com esse nome em @existing.ParentDisplay. Escolha outro nome.</div>
+                        }
+                    }
+                </div>
+
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-6">
+                        <label class="form-label">Quando</label>
+                        <select class="form-select" @bind="TimingValue">
+                            <option value="after">AFTER (depois da operação)</option>
+                            <option value="instead">INSTEAD OF (no lugar da operação)</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 d-flex gap-3 pb-2">
+                        <label class="form-check mb-0"><input type="checkbox" class="form-check-input" @bind="_request.OnInsert" /> INSERT</label>
+                        <label class="form-check mb-0"><input type="checkbox" class="form-check-input" @bind="_request.OnUpdate" /> UPDATE</label>
+                        <label class="form-check mb-0"><input type="checkbox" class="form-check-input" @bind="_request.OnDelete" /> DELETE</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <label class="form-label">Corpo da trigger</label>
+                <textarea class="form-control font-monospace" rows="11" spellcheck="false"
+                          @bind="_request.Body" @bind:event="oninput"
+                          placeholder="INSERT INTO dbo.Auditoria (Tabela, Id, Quando)&#10;SELECT 'Cliente', i.Id, SYSDATETIME()&#10;FROM inserted i;"></textarea>
+                <div class="form-text">
+                    Só os comandos: o cabeçalho, o BEGIN/END e o <code>SET NOCOUNT ON</code> são gerados. Use as tabelas <code>inserted</code> e <code>deleted</code>.
+                </div>
+            </div>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Se já existir uma trigger com esse nome <em>na mesma tabela</em>, ela é removida e recriada (<code>DROP</code>, <code>GO</code>, <code>CREATE</code>). Uma trigger de mesmo nome em <strong>outra</strong> tabela <strong>nunca</strong> é removida.</li>
+            <li>Sem Safe guard: se o corpo novo tiver erro (ex.: coluna inexistente), o <code>DROP</code> já aconteceu e a trigger antiga se perde. O SQL Server acusa o erro no <code>CREATE</code>.</li>
+            <li><strong>Safe guard:</strong> transação que atravessa os lotes (o último lote desfaz o <code>DROP</code> se o <code>CREATE</code> falhar) e aviso quando o nome já é de uma trigger em outra tabela.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly CreateTriggerRequest _request = new();
+
+    private string TimingValue
+    {
+        get => _request.Timing == TriggerTiming.After ? "after" : "instead";
+        set => _request.Timing = value == "instead" ? TriggerTiming.InsteadOf : TriggerTiming.After;
+    }
+
+    private ModuleInfo? ExistingTrigger => Connection.FindModule(ModuleKind.Trigger, _request.Schema, _request.TriggerName);
+
+    private bool SameTable(ModuleInfo trigger) =>
+        string.Equals(trigger.ParentSchema, _request.Schema.Trim(), StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(trigger.ParentName, _request.Table.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized() => Connection.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Connection.Changed -= OnChanged;
+}
