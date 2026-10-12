@@ -1,0 +1,80 @@
+@page "/view/colunas"
+
+<ScriptPage Title="Adicionar colunas à view" Request="_request" Wide="true"
+            Description="Gera o CREATE VIEW com as novas colunas: o script remove a view antiga e cria a nova.">
+    <ChildContent>
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <ObjectPicker Kind="ModuleKind.View" Label="View" Selected="OnSelected"
+                              @bind-Schema="_request.Schema" @bind-Name="_request.ViewName" />
+
+                @if (_request.ExistingColumns.Count > 0)
+                {
+                    <div class="small mb-2">
+                        <span class="text-muted">Colunas atuais:</span>
+                        @foreach (var column in _request.ExistingColumns)
+                        {
+                            <span class="badge badge-soft me-1">@column</span>
+                        }
+                    </div>
+                }
+
+                <label class="form-label">Definição atual da view</label>
+                <textarea class="form-control font-monospace" rows="11" spellcheck="false"
+                          @bind="_request.Definition" @bind:event="oninput"
+                          placeholder="CREATE VIEW dbo.vw_Cliente AS&#10;SELECT ..."></textarea>
+                <div class="form-text">
+                    Com um banco conectado, é carregada ao escolher a view. Sem conexão, cole aqui o CREATE VIEW atual.
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <label class="form-label">Novas colunas (uma por linha)</label>
+                <textarea class="form-control font-monospace" rows="8" spellcheck="false"
+                          value="@_newColumnsText" @oninput="OnNewColumns"
+                          placeholder="c.Email&#10;c.Saldo * 2 AS DobroSaldo&#10;UPPER(c.Nome) AS NomeMaiusculo"></textarea>
+                <div class="form-text">
+                    Cada linha é a expressão de uma coluna, como no SELECT. Expressões que não são só um nome de coluna precisam de alias (<code>AS</code>).
+                    As colunas entram no fim da lista do SELECT.
+                </div>
+            </div>
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Se a view não existir no banco, o script apenas a cria (com Safe guard e PRINT, avisa antes).</li>
+            <li>A view antiga é <strong>removida e recriada</strong> (<code>DROP</code>, <code>GO</code>, <code>CREATE</code>) com o mesmo SELECT mais as novas colunas. As permissões (GRANT) dadas a ela se perdem.</li>
+            <li>Sem Safe guard: se uma coluna nova estiver errada (ex.: não existe), o <code>DROP</code> já aconteceu e a view antiga se perde.</li>
+            <li><strong>Safe guard:</strong> transação que atravessa os lotes: se o <code>CREATE</code> falhar, o último lote desfaz o <code>DROP</code> e a view antiga continua no banco.</li>
+            <li>Views com UNION/INTERSECT/EXCEPT ou com lista de colunas no cabeçalho não são suportadas aqui: use "Criar view" com o SELECT completo.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddViewColumnsRequest _request = new();
+    private string _newColumnsText = "";
+
+    private void OnNewColumns(ChangeEventArgs e)
+    {
+        _newColumnsText = e.Value?.ToString() ?? "";
+        _request.NewColumns = _newColumnsText
+            .Replace("\r\n", "\n")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+    }
+
+    // Ao escolher uma view existente, traz a definição e as colunas atuais do banco.
+    private void OnSelected(ModuleInfo? module)
+    {
+        if (module is not { DetailsLoaded: true })
+        {
+            _request.ExistingColumns = [];
+            return;
+        }
+
+        _request.ExistingColumns = module.Columns.ToList();
+        if (module.Definition is not null)
+            _request.Definition = module.Definition;
+    }
+}

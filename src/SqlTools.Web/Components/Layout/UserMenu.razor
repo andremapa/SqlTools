@@ -1,0 +1,81 @@
+@implements IDisposable
+@inject ProfileState Profile
+@inject NavigationManager Navigation
+
+@* Avatar no canto superior direito; ao clicar abre o menu com o nome do usuário, o perfil (foto) e "Sair". *@
+<div class="user-menu" @onkeydown="OnKeyDown">
+    @if (Profile.Current is { } user)
+    {
+        <button type="button" class="user-menu-toggle" aria-haspopup="menu" aria-expanded="@(_open ? "true" : "false")"
+                title="@user.Name" @onclick="Toggle">
+            <Avatar Name="@user.Name" PhotoUrl="@user.PhotoUrl" Size="2.1rem" />
+            <span class="user-menu-name d-none d-lg-inline">@user.Name</span>
+            <Icon Name="chevron" Size="0.8rem" />
+        </button>
+
+        @if (_open)
+        {
+            @* Camada transparente sobre a página: clicar fora fecha o menu. *@
+            <div class="user-menu-backdrop" @onclick="Close"></div>
+
+            <div class="user-menu-panel" role="menu">
+                <div class="user-menu-header">
+                    <Avatar Name="@user.Name" PhotoUrl="@user.PhotoUrl" Size="3rem" />
+                    <div class="user-menu-who">
+                        <div class="fw-semibold text-truncate" title="@user.Name">@user.Name</div>
+                        <div class="small text-muted text-truncate" title="@user.Email">@user.Email</div>
+                        @if (!string.Equals(user.UserName, user.Email, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="small text-muted text-truncate">@@@user.UserName</div>
+                        }
+                    </div>
+                </div>
+
+                <a class="user-menu-item" role="menuitem" href="perfil" @onclick="Close"><Icon Name="user" Size="1rem" /> Meu perfil e foto</a>
+
+                <form action="sair" method="post" class="m-0">
+                    <AntiforgeryToken />
+                    <button type="submit" class="user-menu-item" role="menuitem"><Icon Name="logout" Size="1rem" /> Sair</button>
+                </form>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool _open;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Profile.Changed += OnProfileChanged;
+        Navigation.LocationChanged += OnLocationChanged;
+
+        if (Profile.Current is null)
+            await Profile.LoadAsync();
+    }
+
+    private void Toggle() => _open = !_open;
+
+    private void Close() => _open = false;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _open = false;
+    }
+
+    private void OnProfileChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        InvokeAsync(() =>
+        {
+            _open = false;
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        Profile.Changed -= OnProfileChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

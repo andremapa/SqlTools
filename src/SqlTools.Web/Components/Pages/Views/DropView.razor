@@ -1,0 +1,19 @@
+@page "/view/excluir"
+
+<ScriptPage Title="Excluir view" Request="_request"
+            Description="Remove uma view.">
+    <ChildContent>
+        <ObjectPicker Kind="ModuleKind.View" Label="View" @bind-Schema="_request.Schema" @bind-Name="_request.ViewName" />
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Ignora (sem erro) se a view não existir.</li>
+            <li>Falha se existir um objeto com esse nome que não é uma view.</li>
+            <li>Objetos que dependem da view (outras views, procedures) continuam existindo e passam a falhar ao serem executados.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropViewRequest _request = new();
+}

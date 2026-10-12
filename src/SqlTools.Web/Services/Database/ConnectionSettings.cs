@@ -29,7 +29,7 @@ public sealed record ConnectionSettings(
         {
             DataSource = Server.Trim(),
             TrustServerCertificate = true,
-            ConnectTimeout = 15,
+            ConnectTimeout = 30, // servidores remotos/VPN do ERP podem demorar a aceitar a conexão
             ApplicationName = "SqlTools",
         };
 

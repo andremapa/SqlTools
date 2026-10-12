@@ -1,0 +1,44 @@
+@* Foto do usuário ou, sem foto, um círculo com as iniciais (a cor vem do nome, então é sempre a mesma para a mesma pessoa). *@
+@if (!string.IsNullOrEmpty(PhotoUrl))
+{
+    <img class="avatar" style="--avatar-size: @Size" src="@PhotoUrl" alt="Foto de @Name" />
+}
+else
+{
+    <span class="avatar avatar-initials" style="--avatar-size: @Size; background: @Color" aria-label="@Name">@Initials</span>
+}
+
+@code {
+    private static readonly string[] Palette = ["#15803d", "#0f766e", "#047857", "#4d7c0f", "#166534", "#0e7490", "#3f6212", "#115e59"];
+
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public string? PhotoUrl { get; set; }
+
+    /// <summary>Diâmetro (CSS), ex.: "2.25rem".</summary>
+    [Parameter] public string Size { get; set; } = "2.25rem";
+
+    private string Initials
+    {
+        get
+        {
+            var parts = Name.Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return parts.Length switch
+            {
+                0 => "?",
+                1 => char.ToUpperInvariant(parts[0][0]).ToString(),
+                _ => string.Concat(char.ToUpperInvariant(parts[0][0]), char.ToUpperInvariant(parts[^1][0])),
+            };
+        }
+    }
+
+    private string Color
+    {
+        get
+        {
+            var hash = 17;
+            foreach (var c in Name.ToLowerInvariant())
+                hash = unchecked(hash * 31 + c);
+            return Palette[(hash & int.MaxValue) % Palette.Length];
+        }
+    }
+}

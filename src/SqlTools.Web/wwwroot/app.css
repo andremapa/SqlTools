@@ -540,3 +540,159 @@ h1:focus {
         border-bottom: 1px dashed var(--line);
         font-size: 0.82rem;
     }
+
+/* Explorador preguiçoso (linhas clicáveis em vez de <details>) */
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    padding: 0.2rem 0.3rem;
+    border: 0;
+    border-radius: 0.3rem;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+    font-size: 0.88rem;
+}
+
+    .tree-row:hover {
+        background: var(--brand-50);
+    }
+
+    .tree-row .icon {
+        color: var(--brand-700);
+    }
+
+.tree-row .chev {
+    width: 0.8rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.tree-children {
+    margin-left: 1.1rem;
+}
+
+/* ---------- Avatar e menu do usuário (canto superior direito) ---------- */
+.avatar {
+    --avatar-size: 2.25rem;
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+    border-radius: 50%;
+    flex: 0 0 auto;
+    object-fit: cover;
+    display: inline-block;
+    background: #e8f0eb;
+}
+
+.avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: calc(var(--avatar-size) * 0.4);
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
+.top-row {
+    gap: 0.75rem;
+}
+
+.user-menu {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.user-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0.5rem 0.2rem 0.2rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 0.85rem;
+}
+
+    .user-menu-toggle:hover,
+    .user-menu-toggle[aria-expanded="true"] {
+        border-color: var(--brand-600);
+        background: var(--brand-50);
+    }
+
+    .user-menu-toggle .icon {
+        transform: rotate(90deg); /* a seta do ícone aponta para a direita: aqui aponta para baixo */
+        color: var(--muted);
+    }
+
+.user-menu-name {
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+}
+
+.user-menu-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    z-index: 1050;
+    min-width: 17rem;
+    max-width: 22rem;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 32px rgba(15, 61, 43, 0.18);
+    padding: 0.4rem;
+}
+
+.user-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.7rem 0.6rem 0.8rem;
+    margin-bottom: 0.3rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.user-menu-who {
+    min-width: 0;
+}
+
+.user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--ink);
+    font-size: 0.9rem;
+    text-align: left;
+    text-decoration: none;
+}
+
+    .user-menu-item:hover {
+        background: var(--brand-50);
+        color: var(--ink);
+    }
+
+    .user-menu-item .icon {
+        color: var(--brand-700);
+    }
+
+.profile-card {
+    max-width: 44rem;
+}

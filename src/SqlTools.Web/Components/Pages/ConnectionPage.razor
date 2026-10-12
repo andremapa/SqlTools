@@ -124,35 +124,66 @@
                     <strong class="me-auto">Explorador</strong>
                     <span class="text-muted small">@schema.Tables.Count tabela(s)</span>
                 </div>
-                <div class="card-body obj-tree">
-                    <details open>
-                        <summary><Icon Name="database" Size="1rem" /> <strong>@schema.Database</strong> <span class="text-muted small">@schema.Server</span></summary>
-                        @if (schema.Tables.Count == 0)
+                <div class="card-body pb-2">
+                    <div class="d-flex align-items-center gap-2 small mb-2">
+                        <Icon Name="database" Size="1rem" /> <strong>@schema.Database</strong> <span class="text-muted">@schema.Server</span>
+                    </div>
+                    <input class="form-control form-control-sm mb-2" placeholder="Filtrar tabelas…" value="@_filter" @oninput="e => _filter = e.Value?.ToString() ?? string.Empty" />
+                </div>
+                <div class="card-body obj-tree pt-0">
+                    @if (schema.Tables.Count == 0)
+                    {
+                        <div class="tree-empty">O banco ainda não tem tabelas.</div>
+                    }
+
+                    @* O explorador é preguiçoso: só desenha o que está aberto, no máximo MaxTablesShown tabelas por schema,
+                       e só lê as colunas de uma tabela quando ela é aberta. Bancos de ERP têm milhares de tabelas. *@
+                    @foreach (var group in FilteredGroups(schema))
+                    {
+                        var schemaOpen = IsSchemaOpen(group.Key);
+                        <button type="button" class="tree-row" @onclick="() => ToggleSchema(group.Key)">
+                            <span class="chev">@(schemaOpen ? "▾" : "▸")</span>
+                            <Icon Name="folder" Size="1rem" /> @group.Key <span class="text-muted small">(@group.Count)</span>
+                        </button>
+
+                        @if (schemaOpen)
                         {
-                            <div class="tree-empty">O banco ainda não tem tabelas.</div>
-                        }
-                        @foreach (var group in schema.Tables.GroupBy(t => t.Schema))
-                        {
-                            <details open>
-                                <summary><Icon Name="folder" Size="1rem" /> @group.Key <span class="text-muted small">(@group.Count())</span></summary>
-                                @foreach (var table in group)
+                            <div class="tree-children">
+                                @foreach (var table in group.Take(MaxTablesShown))
                                 {
-                                    <details>
-                                        <summary><Icon Name="table" Size="1rem" /> @table.Name <span class="text-muted small">@table.Columns.Count col.</span></summary>
-                                        <ul class="tree-columns">
-                                            @foreach (var column in table.Columns)
-                                            {
-                                                <li>
-                                                    <span>@column.Name</span>
-                                                    <span class="text-muted">@TypeText(column)@(column.IsIdentity ? " · IDENTITY" : "")@(column.IsNullable ? "" : " · NOT NULL")</span>
-                                                </li>
-                                            }
-                                        </ul>
-                                    </details>
+                                    var tableOpen = _openTables.Contains(table.Display);
+                                    <button type="button" class="tree-row" @onclick="() => ToggleTable(table)">
+                                        <span class="chev">@(tableOpen ? "▾" : "▸")</span>
+                                        <Icon Name="table" Size="1rem" /> @table.Name
+                                    </button>
+
+                                    @if (tableOpen)
+                                    {
+                                        @if (!table.DetailsLoaded)
+                                        {
+                                            <div class="tree-children tree-empty">@(Connection.IsLoadingDetails(table.Schema, table.Name) ? "Carregando colunas…" : "Não foi possível ler as colunas.")</div>
+                                        }
+                                        else
+                                        {
+                                            <ul class="tree-columns">
+                                                @foreach (var column in table.Columns)
+                                                {
+                                                    <li>
+                                                        <span>@column.Name</span>
+                                                        <span class="text-muted">@TypeText(column)@(column.IsIdentity ? " · IDENTITY" : "")@(column.IsNullable ? "" : " · NOT NULL")</span>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    }
                                 }
-                            </details>
+                                @if (group.Count > MaxTablesShown)
+                                {
+                                    <div class="tree-empty">+ @(group.Count - MaxTablesShown) tabelas. Use o filtro para refinar.</div>
+                                }
+                            </div>
                         }
-                    </details>
+                    }
                 </div>
             </div>
         }
@@ -176,6 +207,41 @@
     private bool _remember;
 
     private bool _windowsAuth => _authMode == "windows";
+
+    private const int MaxTablesShown = 200;
+
+    private string _filter = "";
+    private readonly HashSet<string> _openSchemas = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _openTables = new(StringComparer.OrdinalIgnoreCase);
+
+    // Com filtro ativo, os schemas com resultado abrem sozinhos.
+    private bool IsSchemaOpen(string schema) => _filter.Length > 0 || _openSchemas.Contains(schema);
+
+    private IEnumerable<SchemaGroup> FilteredGroups(DatabaseSchema schema) =>
+        schema.Tables
+            .Where(t => _filter.Length == 0 || t.Name.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase))
+            .GroupBy(t => t.Schema)
+            .Select(g => new SchemaGroup(g.Key, g.ToList()));
+
+    private sealed class SchemaGroup(string key, List<TableInfo> tables) : List<TableInfo>(tables)
+    {
+        public string Key { get; } = key;
+    }
+
+    private void ToggleSchema(string schema)
+    {
+        if (!_openSchemas.Remove(schema))
+            _openSchemas.Add(schema);
+    }
+
+    private async Task ToggleTable(TableInfo table)
+    {
+        if (_openTables.Remove(table.Display))
+            return;
+
+        _openTables.Add(table.Display);
+        await Connection.EnsureTableAsync(table.Schema, table.Name); // lê as colunas só agora
+    }
 
     private bool CanConnect => !string.IsNullOrWhiteSpace(_server) && (_windowsAuth || !string.IsNullOrWhiteSpace(_user));
 

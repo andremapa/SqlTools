@@ -2,26 +2,53 @@ namespace SqlTools.Web.Components.Layout;
 
 public sealed record NavItem(string Title, string Href, string Icon);
 
-public sealed record NavGroup(string Title, IReadOnlyList<NavItem> Items);
+/// <summary>
+/// Grupo do menu. Com vários itens vira uma seção que pode ser recolhida; com um único item vira um link direto
+/// (com o título e o ícone do grupo).
+/// </summary>
+public sealed record NavGroup(string Title, string Icon, IReadOnlyList<NavItem> Items)
+{
+    public bool IsSingleLink => Items.Count == 1;
+}
 
-/// <summary>Catálogo das operações disponíveis (usado no menu e na página inicial).</summary>
+/// <summary>Itens do menu e da página inicial.</summary>
 public static class NavItems
 {
-    public static readonly IReadOnlyList<NavGroup> Groups =
+    /// <summary>Primeiro item do menu, só para administradores.</summary>
+    public static readonly NavGroup Admin = new("Administração", "users", [new("Usuários", "admin/usuarios", "users")]);
+
+    public static readonly NavGroup Connection = new("Conexão", "database", [new("Conexão com o banco", "conexao", "database")]);
+
+    public static readonly NavGroup Batch = new("Lote", "layers", [new("Script em lote", "lote", "layers")]);
+
+    /// <summary>Os grupos de operações que geram script, na ordem do menu.</summary>
+    public static readonly IReadOnlyList<NavGroup> Operations =
     [
-        new("Tabelas",
+        new("Tabelas", "table",
         [
             new("Criar tabela", "tabela/criar", "table-plus"),
             new("Excluir tabela", "tabela/excluir", "trash"),
         ]),
-        new("Colunas",
+        new("Views", "eye",
+        [
+            new("Criar/recriar view", "view/criar", "eye"),
+            new("Adicionar colunas", "view/colunas", "column-plus"),
+            new("Excluir view", "view/excluir", "trash"),
+        ]),
+        new("Triggers", "zap",
+        [
+            new("Criar/recriar trigger", "trigger/criar", "zap"),
+            new("Alterar trigger", "trigger/alterar", "edit"),
+            new("Excluir trigger", "trigger/excluir", "trash"),
+        ]),
+        new("Colunas", "column-plus",
         [
             new("Adicionar coluna", "coluna/adicionar", "column-plus"),
             new("Alterar coluna", "coluna/alterar", "edit"),
             new("Renomear coluna", "coluna/renomear", "type"),
             new("Excluir coluna", "coluna/excluir", "trash"),
         ]),
-        new("Constraints",
+        new("Constraints", "key",
         [
             new("Chave primária", "constraint/pk", "key"),
             new("Chave estrangeira", "constraint/fk", "link"),
@@ -30,10 +57,15 @@ public static class NavItems
             new("Default", "constraint/default", "flag"),
             new("Excluir constraint", "constraint/excluir", "x-circle"),
         ]),
-        new("Índices",
+        new("Índices", "list",
         [
             new("Criar índice", "indice/criar", "list"),
             new("Excluir índice", "indice/excluir", "trash"),
         ]),
     ];
+
+    /// <summary>
+    /// Ordem do menu: (Administração, se for admin), Conexão, Tabelas, Views, Triggers, Colunas, Constraints, Índices e Lote.
+    /// </summary>
+    public static readonly IReadOnlyList<NavGroup> Menu = [Connection, .. Operations, Batch];
 }

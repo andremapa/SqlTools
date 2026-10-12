@@ -17,7 +17,8 @@
         @if (!WarnIfExists)
         {
             <datalist id="@ListId">
-                @foreach (var table in Connection.TablesIn(Schema))
+                @* Só as 50 melhores sugestões para o texto digitado: milhares de <option> travariam a tela em bancos de ERP. *@
+                @foreach (var table in Connection.SearchTables(Schema, Table, SuggestionLimit, IncludeViews))
                 {
                     <option value="@table" />
                 }
@@ -44,13 +45,18 @@
     /// <summary>Tabela nova (Criar tabela): em vez de listar as existentes, avisa se o nome já existe.</summary>
     [Parameter] public bool WarnIfExists { get; set; }
 
+    /// <summary>Aceita também views (alvo de uma trigger INSTEAD OF): sugere e reconhece views como existentes.</summary>
+    [Parameter] public bool IncludeViews { get; set; }
+
+    private const int SuggestionLimit = 50;
+
     private string SchemaListId => ListId + "s";
     private string? TableListAttribute => WarnIfExists ? null : ListId;
     private string Placeholder => Connection.IsConnected && !WarnIfExists ? "Escolha ou digite" : "Ex.: Cliente";
 
     private bool Known => Connection.IsConnected && !string.IsNullOrWhiteSpace(Table);
-    private bool Exists => Known && Connection.Find(Schema, Table) is not null;
-    private bool Missing => Known && !WarnIfExists && Connection.Find(Schema, Table) is null;
+    private bool Exists => Known && (Connection.Find(Schema, Table) is not null || (IncludeViews && Connection.TableOrViewExists(Schema, Table)));
+    private bool Missing => Known && !WarnIfExists && !Exists;
 
     private Task OnSchemaInput(ChangeEventArgs e) => SchemaChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
 

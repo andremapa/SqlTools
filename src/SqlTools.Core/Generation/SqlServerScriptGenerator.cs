@@ -36,7 +36,7 @@ public sealed partial class SqlServerScriptGenerator(TimeProvider? timeProvider 
         if (errors.Count > 0)
             return ScriptResult.Invalid(errors);
 
-        var w = new SqlWriter();
+        var w = new SqlWriter { Prints = options.AddPrintCommands, SafeGuard = options.SafeGuard };
 
         if (options.IncludeHeader)
             WriteHeader(w, requests);
@@ -52,7 +52,12 @@ public sealed partial class SqlServerScriptGenerator(TimeProvider? timeProvider 
         {
             if (requests.Count > 1)
                 w.Line($"-- [{i + 1}/{requests.Count}] {requests[i].Describe()}");
-            WriteBatch(w, Build(requests[i]), options);
+
+            // View/trigger: DROP, GO, CREATE, GO, com transação própria atravessando os lotes (a opção "Transação" não se aplica).
+            if (BuildRecreate(requests[i]) is { } recreate)
+                WriteRecreateScript(w, recreate);
+            else
+                WriteBatch(w, Build(requests[i]), options);
             w.Line();
         }
 
@@ -125,6 +130,8 @@ public sealed partial class SqlServerScriptGenerator(TimeProvider? timeProvider 
         DropConstraintRequest r => BuildDropConstraint(r),
         CreateIndexRequest r => BuildCreateIndex(r),
         DropIndexRequest r => BuildDropIndex(r),
+        DropViewRequest r => BuildDropView(r),
+        DropTriggerRequest r => BuildDropTrigger(r),
         _ => throw new NotSupportedException($"Operação não suportada: {request.GetType().Name}"),
     };
 

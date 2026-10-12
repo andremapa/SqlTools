@@ -1,0 +1,41 @@
+@page "/trigger/alterar"
+
+<ScriptPage Title="Alterar trigger" Request="_request" Wide="true"
+            Description="Edite a definição da trigger (por exemplo, para incluir novas colunas). O script remove a trigger antiga e cria a nova.">
+    <ChildContent>
+        <div class="row">
+            <div class="col-lg-6">
+                <ObjectPicker Kind="ModuleKind.Trigger" Label="Trigger" Selected="OnSelected"
+                              @bind-Schema="_request.Schema" @bind-Name="_request.Table" />
+            </div>
+        </div>
+
+        <label class="form-label">Definição da trigger (CREATE TRIGGER)</label>
+        <textarea class="form-control font-monospace" rows="16" spellcheck="false"
+                  @bind="_request.Definition" @bind:event="oninput"
+                  placeholder="CREATE TRIGGER dbo.trg_Cliente ON dbo.Cliente&#10;AFTER INSERT AS&#10;BEGIN&#10;    ...&#10;END"></textarea>
+        <div class="form-text">
+            Com um banco conectado, a definição atual é carregada ao escolher a trigger: edite o texto (ex.: acrescente a coluna na lista do INSERT de auditoria).
+            Sem conexão, cole aqui o CREATE TRIGGER atual. O nome e a tabela devem ser os mesmos da trigger escolhida.
+        </div>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>A trigger antiga é <strong>removida e recriada</strong> (<code>DROP</code>, <code>GO</code>, <code>CREATE</code>) com a definição informada; se não existir, é apenas criada.</li>
+            <li>Sem Safe guard: se a definição nova tiver erro (ex.: coluna inexistente), o <code>DROP</code> já aconteceu e a trigger antiga se perde. O SQL Server acusa o erro no <code>CREATE</code>.</li>
+            <li><strong>Safe guard:</strong> transação que atravessa os lotes: se o <code>CREATE</code> falhar, o último lote desfaz o <code>DROP</code> e a trigger antiga continua no banco.</li>
+            <li>Confere se o nome da definição é o da trigger escolhida, para não recriar a trigger errada.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AlterTriggerRequest _request = new();
+
+    // Ao escolher uma trigger existente, traz a definição atual do banco para ser editada.
+    private void OnSelected(ModuleInfo? module)
+    {
+        if (module is { DetailsLoaded: true, Definition: not null })
+            _request.Definition = module.Definition;
+    }
+}

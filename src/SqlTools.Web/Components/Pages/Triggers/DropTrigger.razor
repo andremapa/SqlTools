@@ -1,0 +1,18 @@
+@page "/trigger/excluir"
+
+<ScriptPage Title="Excluir trigger" Request="_request"
+            Description="Remove uma trigger.">
+    <ChildContent>
+        <ObjectPicker Kind="ModuleKind.Trigger" Label="Trigger" @bind-Schema="_request.Schema" @bind-Name="_request.Table" />
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Ignora (sem erro) se a trigger não existir.</li>
+            <li>Falha se existir um objeto com esse nome que não é uma trigger.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropTriggerRequest _request = new();
+}

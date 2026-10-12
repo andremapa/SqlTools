@@ -72,9 +72,12 @@
     /// <summary>A coluna já existe: sugere as colunas da tabela e preenche tipo/nulidade ao escolher uma.</summary>
     [Parameter] public bool Lookup { get; set; }
 
-    private void OnNameChanged(string name)
+    private async Task OnNameChanged(string name)
     {
         Column.Name = name;
+
+        // As colunas da tabela são lidas sob demanda: garante que já chegaram antes de procurar o tipo.
+        await Connection.EnsureTableAsync(Schema, Table);
 
         var existing = Connection.Find(Schema, Table)?.Columns
             .FirstOrDefault(c => c.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));

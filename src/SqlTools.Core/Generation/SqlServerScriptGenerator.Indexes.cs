@@ -31,7 +31,7 @@ public sealed partial class SqlServerScriptGenerator
                 },
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.IndexExists(t, name), $"Índice {name} já existe em {r.TableDisplay}. Nenhuma alteração realizada.");
+            .Skip(Catalog.IndexExists(t, name), $"Índice {name} já existe em {r.TableDisplay}. Nenhuma alteração realizada.", Catalog.IndexMissing(t, name));
 
         AddColumnsMustExist(script, r, t, r.Columns.Select(c => c.Name).Concat(r.IncludedColumns));
         if (r.IsClustered)
@@ -51,7 +51,7 @@ public sealed partial class SqlServerScriptGenerator
                 Action = w => w.Line($"DROP INDEX {SqlText.Quote(name)} ON {t};"),
             }
             .Error(Catalog.TableMissing(t), TableMissingMessage(r))
-            .Skip(Catalog.IndexMissing(t, name), $"Índice {name} não existe em {r.TableDisplay}. Nenhuma alteração realizada.")
+            .Skip(Catalog.IndexMissing(t, name), $"Índice {name} não existe em {r.TableDisplay}. Nenhuma alteração realizada.", Catalog.IndexExists(t, name))
             .Error(Catalog.IndexBacksConstraint(t, name),
                 $"Índice {name} pertence a uma PK/UNIQUE: use 'Excluir constraint'.");
     }

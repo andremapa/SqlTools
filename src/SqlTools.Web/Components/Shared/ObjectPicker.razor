@@ -1,0 +1,93 @@
+@inherits ConnectionAwareComponent
+
+@* Schema + nome de uma view ou trigger, com sugestões do banco conectado. Ao escolher um objeto existente, sua definição é lida sob demanda. *@
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <label class="form-label">Schema</label>
+        <input class="form-control" list="@SchemaListId" value="@Schema" @oninput="OnSchemaInput" />
+        <datalist id="@SchemaListId">
+            @foreach (var schema in Connection.Schemas)
+            {
+                <option value="@schema" />
+            }
+        </datalist>
+    </div>
+    <div class="col-sm-8">
+        <label class="form-label">@Label</label>
+        <input class="form-control" list="@ListId" value="@Name" placeholder="@Placeholder" @oninput="OnNameInput" />
+        @* Só as 50 melhores sugestões para o texto digitado (bancos de ERP têm muitas views/triggers). *@
+        <datalist id="@ListId">
+            @foreach (var module in Connection.SearchModules(Kind, Schema, Name, SuggestionLimit))
+            {
+                <option value="@module.Name">@(module.ParentDisplay is null ? null : $"em {module.ParentDisplay}")</option>
+            }
+        </datalist>
+
+        @if (_selected is { } found)
+        {
+            @if (Connection.IsLoadingModule(found))
+            {
+                <div class="form-text">Carregando a definição do banco…</div>
+            }
+            else if (WarnIfExists)
+            {
+                <div class="form-text text-warning-emphasis">
+                    Já existe no banco conectado: será removida e recriada com o novo conteúdo (as permissões concedidas a ela se perdem).
+                </div>
+            }
+            else if (found.DetailsLoaded && found.Definition is null)
+            {
+                <div class="form-text text-warning-emphasis">A definição não pôde ser lida (criptografada ou sem permissão). Cole-a manualmente.</div>
+            }
+            else if (found.DetailsLoaded)
+            {
+                <div class="form-text text-success">Definição carregada do banco@(found.ParentDisplay is null ? "" : $" (trigger em {found.ParentDisplay})").</div>
+            }
+        }
+        else if (Connection.IsConnected && !WarnIfExists && !string.IsNullOrWhiteSpace(Name))
+        {
+            <div class="form-text text-warning-emphasis">Não existe no banco conectado.</div>
+        }
+    </div>
+</div>
+
+@code {
+    private const int SuggestionLimit = 50;
+
+    private ModuleInfo? _selected;
+
+    [Parameter] public ModuleKind Kind { get; set; }
+    [Parameter] public string Schema { get; set; } = "dbo";
+    [Parameter] public EventCallback<string> SchemaChanged { get; set; }
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public EventCallback<string> NameChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Nome";
+
+    /// <summary>Criação: em vez de pedir a definição, avisa que a existente será recriada.</summary>
+    [Parameter] public bool WarnIfExists { get; set; }
+
+    /// <summary>
+    /// Disparado quando o nome digitado passa a ser de um objeto existente (já com a definição carregada) ou deixa de ser (null).
+    /// </summary>
+    [Parameter] public EventCallback<ModuleInfo?> Selected { get; set; }
+
+    private string SchemaListId => ListId + "s";
+    private string Placeholder => Connection.IsConnected ? "Escolha ou digite" : Kind == ModuleKind.View ? "Ex.: vw_Cliente" : "Ex.: trg_Cliente_Auditoria";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var module = Connection.FindModule(Kind, Schema, Name);
+        if (ReferenceEquals(module, _selected))
+            return;
+
+        _selected = module;
+        if (module is not null)
+            await Connection.EnsureModuleAsync(module);
+
+        await Selected.InvokeAsync(module);
+    }
+
+    private Task OnSchemaInput(ChangeEventArgs e) => SchemaChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+
+    private Task OnNameInput(ChangeEventArgs e) => NameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+}

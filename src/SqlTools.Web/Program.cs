@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 using SqlTools.Core.Generation;
 using SqlTools.Web.Components;
 using SqlTools.Web.Data;
@@ -10,7 +10,9 @@ using SqlTools.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    // A foto de perfil (JPEG reduzido, em base64) volta do navegador ao servidor pelo circuito: o padrão de 32 KB não basta.
+    .AddHubOptions(o => o.MaximumReceiveMessageSize = 256 * 1024);
 
 // --- Autenticação -----------------------------------------------------------
 var dataDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
@@ -50,6 +52,8 @@ builder.Services.AddSingleton<IDatabaseSchemaReader, SqlServerSchemaReader>();
 builder.Services.AddScoped<ScriptSession>();
 builder.Services.AddScoped<DatabaseConnection>();
 builder.Services.AddSingleton<UserAdminService>();
+builder.Services.AddSingleton<UserProfileService>();
+builder.Services.AddScoped<ProfileState>();
 
 var app = builder.Build();
 
@@ -75,6 +79,18 @@ app.MapPost("/sair", async (HttpContext http, SignInManager<ApplicationUser> sig
     return Results.LocalRedirect("/entrar");
 }).RequireAuthorization();
 
+// Foto do usuário logado. "private, no-cache": o navegador sempre confere (ETag) antes de reutilizar, então trocar a foto vale na hora.
+app.MapGet("/perfil/foto", async (HttpContext http, UserProfileService profiles) =>
+{
+    var id = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (id is null || await profiles.GetPhotoAsync(id) is not { } photo)
+        return Results.NotFound();
+
+    http.Response.Headers.CacheControl = "private, no-cache";
+    http.Response.Headers.XContentTypeOptions = "nosniff";
+    return Results.File(photo.Data, "image/jpeg", entityTag: new EntityTagHeaderValue($"\"{photo.Version}\""));
+}).RequireAuthorization();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
@@ -85,7 +101,7 @@ static async Task SeedAsync(WebApplication app)
 {
     using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
-    await services.GetRequiredService<AppDbContext>().Database.EnsureCreatedAsync();
+    await UserStoreBootstrapper.EnsureAsync(services.GetRequiredService<AppDbContext>());
 
     var roles = services.GetRequiredService<RoleManager<IdentityRole>>();
     if (!await roles.RoleExistsAsync(UserAdminService.AdminRole))

@@ -1,7 +1,9 @@
 @implements IDisposable
+@using System.Text.Json
 @inject ScriptSession Session
 @inject DatabaseConnection Connection
-@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -14,76 +16,143 @@
 
 <input type="checkbox" title="Menu de navegação" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column nav-main">
-        <div class="nav-item px-3 pt-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><Icon Name="home" />Início</NavLink>
-        </div>
+@* Clicar em um link fecha o menu no celular; clicar no cabeçalho de um grupo (recolher/expandir) não. *@
+<div class="nav-scrollable" onclick="if (!event.target.closest('.nav-group-toggle')) document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column nav-main pt-2">
+        <AuthorizeView Roles="@UserAdminService.AdminRole">
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="@NavItems.Admin.Items[0].Href"><Icon Name="@NavItems.Admin.Icon" />@NavItems.Admin.Title</NavLink>
+            </div>
+        </AuthorizeView>
 
-        @foreach (var group in NavItems.Groups)
+        @foreach (var group in NavItems.Menu)
         {
-            <div class="nav-section px-3">@group.Title</div>
-            @foreach (var item in group.Items)
+            @if (group.IsSingleLink)
             {
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="@item.Href"><Icon Name="@item.Icon" />@item.Title</NavLink>
+                    <NavLink class="nav-link" href="@group.Items[0].Href">
+                        <Icon Name="@group.Icon" />@group.Title
+                        @if (group == NavItems.Batch && Session.Batch.Count > 0)
+                        {
+                            <span class="badge rounded-pill nav-badge ms-auto">@Session.Batch.Count</span>
+                        }
+                        else if (group == NavItems.Connection && Connection.IsConnected)
+                        {
+                            <span class="status-dot ms-auto" title="Conectado a @Connection.Schema!.Database"></span>
+                        }
+                    </NavLink>
+                </div>
+            }
+            else
+            {
+                var open = _open.Contains(group.Title);
+                <div class="nav-group @(HasActive(group) ? "has-active" : null)">
+                    <div class="px-3">
+                        <button type="button" class="nav-group-toggle" aria-expanded="@(open ? "true" : "false")" @onclick="() => ToggleAsync(group)">
+                            <Icon Name="@group.Icon" />
+                            <span>@group.Title</span>
+                            <span class="nav-count">@group.Items.Count</span>
+                            <span class="chev @(open ? "open" : null)"><Icon Name="chevron" Size="0.9rem" /></span>
+                        </button>
+                    </div>
+
+                    @if (open)
+                    {
+                        <div class="nav-sub">
+                            @foreach (var item in group.Items)
+                            {
+                                <div class="nav-item px-3">
+                                    <NavLink class="nav-link" href="@item.Href"><Icon Name="@item.Icon" />@item.Title</NavLink>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
             }
         }
-
-        <div class="nav-section px-3">Lote</div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="lote">
-                <Icon Name="layers" />Script em lote
-                @if (Session.Batch.Count > 0)
-                {
-                    <span class="badge rounded-pill nav-badge ms-auto">@Session.Batch.Count</span>
-                }
-            </NavLink>
-        </div>
-
-        <div class="nav-section px-3">Banco de dados</div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="conexao">
-                <Icon Name="database" />Conexão
-                @if (Connection.IsConnected)
-                {
-                    <span class="status-dot ms-auto" title="Conectado a @Connection.Schema!.Database"></span>
-                }
-            </NavLink>
-        </div>
-
-        <AuthorizeView Roles="@UserAdminService.AdminRole">
-            <div class="nav-section px-3">Administração</div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/usuarios"><Icon Name="users" />Usuários</NavLink>
-            </div>
-        </AuthorizeView>
     </nav>
-
-    <div class="nav-user px-3" onclick="event.stopPropagation()">
-        <div class="d-flex align-items-center gap-2 mb-2">
-            <Icon Name="user" />
-            <span class="nav-user-name" title="@_userName">@_userName</span>
-        </div>
-        <form action="sair" method="post">
-            <AntiforgeryToken />
-            <button type="submit" class="btn btn-sm btn-outline-light w-100"><Icon Name="logout" Size="1rem" /> Sair</button>
-        </form>
-    </div>
 </div>
 
 @code {
-    private string _userName = "";
+    private const string StorageKey = "sqltools.nav.open";
 
-    protected override async Task OnInitializedAsync()
+    // Grupos abertos. Por padrão só o da página atual; o que o usuário abrir/fechar fica lembrado no navegador.
+    private readonly HashSet<string> _open = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
     {
         Session.Changed += OnChanged;
         Connection.Changed += OnChanged;
-
-        var user = (await Authentication.GetAuthenticationStateAsync()).User;
-        _userName = user.Identity?.Name ?? "";
+        Navigation.LocationChanged += OnLocationChanged;
+        OpenActiveGroup();
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("sqlTools.getItem", StorageKey);
+            if (!string.IsNullOrEmpty(json) && JsonSerializer.Deserialize<string[]>(json) is { } saved)
+            {
+                _open.Clear();
+                foreach (var title in saved)
+                    _open.Add(title);
+                OpenActiveGroup(); // a página atual sempre fica visível
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or JsonException)
+        {
+            // Sem localStorage (ou valor inválido): segue com o padrão.
+        }
+    }
+
+    private async Task ToggleAsync(NavGroup group)
+    {
+        if (!_open.Remove(group.Title))
+            _open.Add(group.Title);
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("sqlTools.setItem", StorageKey, JsonSerializer.Serialize(_open));
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+        }
+    }
+
+    private string CurrentPath()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var end = path.IndexOfAny(['?', '#']);
+        return (end >= 0 ? path[..end] : path).Trim('/');
+    }
+
+    private bool HasActive(NavGroup group) =>
+        group.Items.Any(i => CurrentPath().Equals(i.Href, StringComparison.OrdinalIgnoreCase));
+
+    private void OpenActiveGroup()
+    {
+        foreach (var group in NavItems.Menu.Where(g => !g.IsSingleLink && HasActive(g)))
+            _open.Add(group.Title);
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        InvokeAsync(async () =>
+        {
+            var before = _open.Count;
+            OpenActiveGroup();
+            if (_open.Count != before)
+                await SaveAsync();
+            StateHasChanged();
+        });
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
@@ -91,5 +160,6 @@
     {
         Session.Changed -= OnChanged;
         Connection.Changed -= OnChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

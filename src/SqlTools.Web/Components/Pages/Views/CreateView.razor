@@ -1,0 +1,37 @@
+@page "/view/criar"
+
+<ScriptPage Title="Criar view" Request="_request" Wide="true"
+            Description="Cria uma view. Se ela já existir, a antiga é removida e a nova é criada no lugar.">
+    <ChildContent>
+        <div class="row">
+            <div class="col-lg-6">
+                <ObjectPicker Kind="ModuleKind.View" Label="Nome da view" WarnIfExists="true"
+                              @bind-Schema="_request.Schema" @bind-Name="_request.ViewName" />
+            </div>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label">SELECT da view</label>
+            <textarea class="form-control font-monospace" rows="10" spellcheck="false"
+                      @bind="_request.SelectStatement" @bind:event="oninput"
+                      placeholder="SELECT c.Id, c.Nome&#10;FROM dbo.Cliente c&#10;WHERE c.Ativo = 1"></textarea>
+            <div class="form-text">Informe só o SELECT (ou WITH ... SELECT). O CREATE VIEW é gerado pela aplicação.</div>
+        </div>
+
+        <label class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="_request.SchemaBinding" />
+            WITH SCHEMABINDING <span class="text-muted small">(exige nomes com schema, ex.: dbo.Cliente)</span>
+        </label>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Se a view já existir, ela é <strong>removida e recriada</strong> (<code>DROP</code>, <code>GO</code>, <code>CREATE</code>). As permissões (GRANT) dadas à view antiga se perdem.</li>
+            <li>Sem Safe guard: se o novo SELECT tiver erro (ex.: coluna inexistente), o <code>DROP</code> já aconteceu e a view antiga se perde. O SQL Server acusa o erro no <code>CREATE</code>.</li>
+            <li><strong>Safe guard:</strong> transação que atravessa os lotes: se o <code>CREATE</code> falhar, o último lote desfaz o <code>DROP</code> e a view antiga continua no banco.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly CreateViewRequest _request = new();
+}

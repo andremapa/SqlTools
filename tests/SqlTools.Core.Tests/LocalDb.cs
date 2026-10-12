@@ -59,6 +59,38 @@ public sealed partial class LocalDbFixture : IDisposable
         return messages;
     }
 
+    /// <summary>Resultado de <see cref="RunAll"/>.</summary>
+    public sealed record ScriptRun(List<string> Messages, List<string> Errors, int FinalTranCount);
+
+    /// <summary>
+    /// Executa um script como o SSMS: um lote com erro não interrompe os seguintes (ao contrário de <see cref="Run"/>, que
+    /// pára no primeiro erro, como o sqlcmd -b). Retorna mensagens, erros e o @@TRANCOUNT da conexão ao final.
+    /// </summary>
+    public ScriptRun RunAll(string script)
+    {
+        var messages = new List<string>();
+        var errors = new List<string>();
+        using var connection = new SqlConnection(ConnectionString);
+        connection.InfoMessage += (_, e) => messages.AddRange(e.Errors.Cast<SqlError>().Select(x => x.Message));
+        connection.Open();
+
+        foreach (var batch in GoSeparator().Split(script).Where(b => !string.IsNullOrWhiteSpace(b)))
+        {
+            try
+            {
+                using var command = new SqlCommand(batch, connection);
+                command.ExecuteNonQuery();
+            }
+            catch (SqlException ex)
+            {
+                errors.Add(ex.Message);
+            }
+        }
+
+        using var tran = new SqlCommand("SELECT @@TRANCOUNT", connection);
+        return new ScriptRun(messages, errors, (int)tran.ExecuteScalar()!);
+    }
+
     public T Scalar<T>(string sql)
     {
         using var connection = new SqlConnection(ConnectionString);

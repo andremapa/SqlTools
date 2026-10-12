@@ -18,6 +18,9 @@ public sealed class DatabaseConnection(
     private const string KeyPrefix = "sqltools.connection.v2.";
     private const string LegacyKeyPrefix = "sqltools.connection.";
 
+    private readonly object _gate = new();
+    private readonly Dictionary<object, Task> _loadingDetails = new(ReferenceEqualityComparer.Instance);
+
     private bool _restored;
     private bool _serverConnected;
 
@@ -128,20 +131,108 @@ public sealed class DatabaseConnection(
 
     public IReadOnlyList<string> Schemas => Schema?.Schemas.ToList() ?? [];
 
-    public IReadOnlyList<string> TablesIn(string? schema) =>
-        Schema?.Tables
-            .Where(t => string.IsNullOrWhiteSpace(schema) || t.Schema.Equals(schema.Trim(), StringComparison.OrdinalIgnoreCase))
-            .Select(t => t.Name)
-            .ToList() ?? [];
+    /// <summary>Sugestões de tabela para o texto digitado (limitadas: bancos de ERP têm milhares de tabelas).</summary>
+    public IReadOnlyList<string> SearchTables(string? schema, string? text, int limit = 50, bool includeViews = false) =>
+        Schema?.SearchTables(schema, text, limit, includeViews) ?? [];
 
     public TableInfo? Find(string? schema, string? table) => Schema?.Find(schema, table);
 
+    public ModuleInfo? FindModule(ModuleKind kind, string? schema, string? name) => Schema?.FindModule(kind, schema, name);
+
+    public bool TableOrViewExists(string? schema, string? name) => Schema?.TableOrViewExists(schema, name) ?? false;
+
+    /// <summary>Sugestões de view ou trigger para o texto digitado (limitadas, como as de tabela).</summary>
+    public IReadOnlyList<ModuleInfo> SearchModules(ModuleKind kind, string? schema, string? text, int limit = 50) =>
+        Schema?.SearchModules(kind, schema, text, limit) ?? [];
+
+    /// <summary>Colunas já carregadas da tabela (vazio até <see cref="EnsureTableAsync"/> terminar).</summary>
     public IReadOnlyList<string> ColumnsOf(string? schema, string? table) =>
         Find(schema, table)?.Columns.Select(c => c.Name).ToList() ?? [];
 
+    /// <summary>Tabela com detalhes sendo lidos agora (para mostrar "carregando" na interface).</summary>
+    public bool IsLoadingDetails(string? schema, string? table)
+    {
+        var info = Find(schema, table);
+        if (info is null)
+            return false;
+        lock (_gate)
+            return _loadingDetails.ContainsKey(info);
+    }
+
+    /// <summary>
+    /// Garante que colunas, constraints e índices da tabela estejam carregados. A leitura é feita uma única vez por tabela
+    /// (chamadas simultâneas compartilham a mesma tarefa) e fica em cache até reconectar ou atualizar a estrutura.
+    /// Falhas são silenciosas: a próxima chamada tenta de novo, e a tela segue funcionando com digitação manual.
+    /// </summary>
+    public Task EnsureTableAsync(string? schema, string? table)
+    {
+        var info = Find(schema, table);
+        return info is null
+            ? Task.CompletedTask
+            : EnsureLoadedAsync(info, info.DetailsLoaded, (cs, ct) => reader.LoadTableDetailsAsync(cs, info, ct));
+    }
+
+    /// <summary>Igual a <see cref="EnsureTableAsync"/>, para a definição (e colunas) de uma view ou trigger.</summary>
+    public Task EnsureModuleAsync(ModuleInfo? module) =>
+        module is null
+            ? Task.CompletedTask
+            : EnsureLoadedAsync(module, module.DetailsLoaded, (cs, ct) => reader.LoadModuleDetailsAsync(cs, module, ct));
+
+    public bool IsLoadingModule(ModuleInfo module)
+    {
+        lock (_gate)
+            return _loadingDetails.ContainsKey(module);
+    }
+
+    private Task EnsureLoadedAsync(object key, bool alreadyLoaded, Func<string, CancellationToken, Task> load)
+    {
+        var owner = Schema;
+        var settings = Settings;
+        if (alreadyLoaded || owner is null || settings is null)
+            return Task.CompletedTask;
+
+        lock (_gate)
+        {
+            if (_loadingDetails.TryGetValue(key, out var running))
+                return running;
+
+            var task = LoadDetailsAsync(key, owner, settings.BuildConnectionString(owner.Database), load);
+            _loadingDetails[key] = task;
+            return task;
+        }
+    }
+
+    private async Task LoadDetailsAsync(object key, DatabaseSchema owner, string connectionString, Func<string, CancellationToken, Task> load)
+    {
+        // Cede o controle antes de qualquer trabalho: o chamador está dentro de um lock ao registrar esta tarefa.
+        await Task.Yield();
+        Changed?.Invoke(); // mostra "carregando"
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await load(connectionString, timeout.Token);
+        }
+        catch
+        {
+            // Segue sem os detalhes; será tentado novamente na próxima vez.
+        }
+        finally
+        {
+            lock (_gate)
+                _loadingDetails.Remove(key);
+        }
+
+        if (ReferenceEquals(Schema, owner))
+            Changed?.Invoke();
+    }
+
     private async Task LoadSchemaAsync(string database, CancellationToken ct)
     {
-        Schema = await reader.ReadAsync(Settings!.BuildConnectionString(database), ct);
+        lock (_gate)
+            _loadingDetails.Clear();
+
+        Schema = await reader.ReadTablesAsync(Settings!.BuildConnectionString(database), ct);
         Settings = Settings with { Database = database };
     }
 
@@ -159,7 +250,7 @@ public sealed class DatabaseConnection(
 
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
             await operation(timeout.Token);
         }
         catch (Exception ex)
