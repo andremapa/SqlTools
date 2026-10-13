@@ -1,0 +1,99 @@
+@* Grade de renomeações (atual → novo), com opção de colar a lista inteira (ex.: duas colunas do Excel). *@
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr><th>Nome atual</th><th></th><th>Novo nome</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var rename in Renames)
+            {
+                <tr @key="rename">
+                    <td>
+                        <ColumnNameInput Value="@rename.From" ValueChanged="name => SetFrom(rename, name)"
+                                         Schema="@Schema" Table="@Table" Placeholder="Escolha ou digite" />
+                    </td>
+                    <td class="text-muted">→</td>
+                    <td><input class="form-control" @bind="rename.To" @bind:event="oninput" placeholder="Novo nome" /></td>
+                    <td><button class="btn btn-sm btn-outline-danger" title="Remover" @onclick="() => Remove(rename)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="d-flex flex-wrap gap-2 align-items-center">
+    <button class="btn btn-sm btn-outline-primary" @onclick="() => AddRows(1)">+ Renomeação</button>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="() => AddRows(5)">+ 5</button>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImport = !_showImport">
+        @(_showImport ? "Fechar importação" : "Colar lista")
+    </button>
+    <span class="text-muted small">@Renames.Count @(Renames.Count == 1 ? "renomeação" : "renomeações")</span>
+</div>
+
+@if (_showImport)
+{
+    <div class="mt-2">
+        <label class="form-label">Uma por linha: <code>Atual -&gt; Novo</code> (também aceita tab, vírgula ou ponto e vírgula)</label>
+        <textarea class="form-control font-monospace" rows="6" @bind="_importText" @bind:event="oninput"
+                  placeholder="Nome -> NomeCompleto&#10;Fone -> Telefone"></textarea>
+        <div class="mt-2">
+            <button class="btn btn-sm btn-primary" @onclick="Import">Importar para a grade</button>
+        </div>
+        @if (_importErrors.Count > 0)
+        {
+            <ul class="text-danger small mt-2 mb-0">
+                @foreach (var error in _importErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<ColumnRename> Renames { get; set; } = default!;
+    [Parameter] public string Schema { get; set; } = "dbo";
+    [Parameter] public string Table { get; set; } = "";
+
+    [CascadingParameter] private ScriptEditContext? Edit { get; set; }
+
+    private bool _showImport;
+    private string _importText = "";
+    private List<string> _importErrors = [];
+
+    private void Changed() => Edit?.NotifyChanged();
+
+    private void SetFrom(ColumnRename rename, string name)
+    {
+        rename.From = name;
+        Changed();
+    }
+
+    private void AddRows(int count)
+    {
+        for (var i = 0; i < count; i++)
+            Renames.Add(new ColumnRename());
+        Changed();
+    }
+
+    private void Remove(ColumnRename rename)
+    {
+        Renames.Remove(rename);
+        Changed();
+    }
+
+    private void Import()
+    {
+        var result = ColumnRenameParser.Parse(_importText);
+        _importErrors = result.Errors;
+        Renames.RemoveAll(r => string.IsNullOrWhiteSpace(r.From) && string.IsNullOrWhiteSpace(r.To) && result.Items.Count > 0);
+        Renames.AddRange(result.Items);
+        if (result.Errors.Count == 0)
+        {
+            _importText = "";
+            _showImport = false;
+        }
+        Changed();
+    }
+}

@@ -13,7 +13,7 @@
             <input type="number" class="form-control" min="1" max="@info.MaxLength" title="Tamanho"
                    placeholder="@info.DefaultLength" disabled="@Column.IsMax" @bind="Column.Length" @bind:event="oninput" />
             <label class="input-group-text gap-1" title="Tamanho máximo (MAX)">
-                <input type="checkbox" class="form-check-input mt-0" @bind="Column.IsMax" /> MAX
+                <input type="checkbox" class="form-check-input mt-0" @bind="Column.IsMax" @bind:after="Changed" /> MAX
             </label>
         </div>
         break;
@@ -40,4 +40,9 @@
 
 @code {
     [Parameter, EditorRequired] public ColumnDefinition Column { get; set; } = default!;
+
+    /// <summary>Avisa o preview do script que o formulário mudou (eventos "change" não sobem no Blazor).</summary>
+    [CascadingParameter] private ScriptEditContext? Edit { get; set; }
+
+    private void Changed() => Edit?.NotifyChanged();
 }

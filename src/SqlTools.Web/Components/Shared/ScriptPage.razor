@@ -1,3 +1,5 @@
+@implements IDisposable
+
 <PageTitle>@Title · SqlTools</PageTitle>
 
 <div class="mb-3">
@@ -8,9 +10,13 @@
 <div class="row g-4">
     <div class="@(Wide ? "col-12" : "col-xxl-5 col-xl-6")">
         <div class="card">
-            @* Eventos de input/change dos campos borbulham até aqui e re-renderizam o preview do script. *@
-            <div class="card-body" @oninput="Refresh" @onchange="Refresh">
-                @ChildContent
+            @* Eventos "input" dos campos sobem até aqui e re-renderizam o preview do script. Eventos "change" NÃO sobem no Blazor:
+               os controles que usam "change" e alteram o modelo dentro de um componente filho (checkbox, select) avisam
+               pelo ScriptEditContext, entregue em cascata logo abaixo. *@
+            <div class="card-body" @oninput="Refresh">
+                <CascadingValue Value="_edit" IsFixed="true">
+                    @ChildContent
+                </CascadingValue>
             </div>
         </div>
         @if (Validations is not null)
@@ -33,6 +39,8 @@
 </div>
 
 @code {
+    private readonly ScriptEditContext _edit = new();
+
     [Parameter, EditorRequired] public string Title { get; set; } = "";
     [Parameter] public string? Description { get; set; }
     [Parameter, EditorRequired] public ScriptRequest Request { get; set; } = default!;
@@ -44,7 +52,13 @@
     /// <summary>Formulário em largura total, com o script abaixo.</summary>
     [Parameter] public bool Wide { get; set; }
 
+    protected override void OnInitialized() => _edit.Changed += OnEdited;
+
+    private void OnEdited() => InvokeAsync(StateHasChanged);
+
     private void Refresh()
     {
     }
+
+    public void Dispose() => _edit.Changed -= OnEdited;
 }

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using SqlTools.Core.Sql;
 
 namespace SqlTools.Core.Model;
@@ -5,16 +6,69 @@ namespace SqlTools.Core.Model;
 /// <summary>Definição de uma coluna (usada em criação de tabela, adição e alteração de coluna).</summary>
 public sealed class ColumnDefinition
 {
+    private string _dataType = "INT";
+    private int? _scale = 2;
+
     public string Name { get; set; } = "";
-    public string DataType { get; set; } = "INT";
+
+    /// <summary>Trocar o tipo para um que não aceita IDENTITY desliga o IDENTITY (ver <see cref="EnforceTypeRules"/>).</summary>
+    public string DataType
+    {
+        get => _dataType;
+        set
+        {
+            _dataType = value;
+            EnforceTypeRules();
+        }
+    }
+
     public int? Length { get; set; }
     public bool IsMax { get; set; }
     public int? Precision { get; set; } = 18;
-    public int? Scale { get; set; } = 2;
+
+    /// <summary>Em DECIMAL/NUMERIC só a escala 0 aceita IDENTITY: mudar a escala pode desligá-lo.</summary>
+    public int? Scale
+    {
+        get => _scale;
+        set
+        {
+            _scale = value;
+            EnforceTypeRules();
+        }
+    }
+
     public int? FractionalSeconds { get; set; } = 7;
     public bool IsNullable { get; set; } = true;
 
     public bool IsIdentity { get; set; }
+
+    /// <summary>
+    /// O tipo atual permite IDENTITY (autoincremento)? Só os inteiros (TINYINT, SMALLINT, INT, BIGINT) e DECIMAL/NUMERIC
+    /// com escala 0. É isso que a tela usa para habilitar o checkbox.
+    /// </summary>
+    [JsonIgnore]
+    public bool CanBeIdentity =>
+        TypeInfo is { SupportsIdentity: true } info &&
+        (info.ArgumentKind != TypeArgumentKind.PrecisionScale || (Scale ?? 0) == 0);
+
+    /// <summary>Por que o IDENTITY não está disponível (para a dica da tela), ou null se está.</summary>
+    [JsonIgnore]
+    public string? IdentityUnavailableReason =>
+        CanBeIdentity ? null
+        : TypeInfo is { SupportsIdentity: true }
+            ? $"{TypeInfo.Name} só aceita IDENTITY com escala 0."
+            : "IDENTITY só existe em INT, BIGINT, SMALLINT, TINYINT e DECIMAL/NUMERIC (escala 0).";
+
+    /// <summary>
+    /// Mantém a coluna coerente com o tipo: se o tipo (ou a escala) deixou de aceitar IDENTITY, o IDENTITY é desligado.
+    /// O contrário não acontece: quem liga o IDENTITY num tipo que não aceita recebe o erro da validação.
+    /// </summary>
+    public void EnforceTypeRules()
+    {
+        if (IsIdentity && !CanBeIdentity)
+            IsIdentity = false;
+    }
+
     public long IdentitySeed { get; set; } = 1;
     public long IdentityIncrement { get; set; } = 1;
 

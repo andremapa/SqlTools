@@ -1,0 +1,25 @@
+@page "/tabela/colunas/alterar"
+@page "/coluna/alterar"
+
+<ScriptPage Title="Alterar colunas" Request="_request" Wide="true"
+            Description="Altera o tipo de dado e/ou a nulidade de várias colunas existentes. Para valor padrão, use 'Constraints › Default'.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <ColumnGrid Columns="_request.Columns" Schema="@_request.Schema" Table="@_request.Table"
+                    Lookup="true" ShowIdentity="false" ShowDefault="false" />
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela ou alguma coluna não existirem.</li>
+            <li>Ao tornar NOT NULL: falha se a coluna tiver valores NULL (verificado antes de alterar).</li>
+            <li>Conversões de tipo incompatíveis ou dependências (índices, constraints) são reportadas pelo SQL Server e a transação é desfeita.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AlterColumnsRequest _request = new()
+    {
+        Columns = [new ColumnDefinition { DataType = "NVARCHAR", Length = 200 }],
+    };
+}

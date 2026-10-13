@@ -51,11 +51,14 @@
                             <td class="args-cell"><TypeArgsFields Column="column" /></td>
                             <td>
                                 <input type="checkbox" class="form-check-input" @bind="column.IsNullable"
-                                       disabled="@IsPrimaryKey(column)" />
+                                       disabled="@(IsPrimaryKey(column) || column.IsIdentity)"
+                                       title="@(column.IsIdentity ? "Uma coluna IDENTITY não aceita NULL." : null)" />
                             </td>
                             <td>
                                 <div class="d-flex gap-1 align-items-center">
+                                    @* Só tipos que aceitam autoincremento (inteiros e DECIMAL/NUMERIC com escala 0) habilitam o checkbox. *@
                                     <input type="checkbox" class="form-check-input" checked="@column.IsIdentity"
+                                           disabled="@(!column.CanBeIdentity)" title="@(column.IdentityUnavailableReason ?? "IDENTITY (autoincremento)")"
                                            @onchange="e => SetIdentity(column, (bool)e.Value!)" />
                                     @if (column.IsIdentity)
                                     {

@@ -1,0 +1,30 @@
+@page "/tabela/colunas/excluir"
+@page "/coluna/excluir"
+
+<ScriptPage Title="Excluir colunas" Request="_request"
+            Description="Remove várias colunas e seus dados em um único script.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <div class="mb-2">
+            <label class="form-label">Colunas</label>
+            <ColumnListInput @bind-Value="_request.ColumnNames" Schema="@_request.Schema" Table="@_request.Table"
+                             Placeholder="Ex.: Coluna1, Coluna2, Coluna3" />
+        </div>
+        <label class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="_request.DropDefaultConstraint" />
+            Remover automaticamente a constraint DEFAULT de cada coluna
+        </label>
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Cada coluna é verificada separadamente: ignora (sem erro) as que não existirem.</li>
+            <li>Falha se alguma coluna for usada em índice, PK/UNIQUE ou chave estrangeira.</li>
+            <li>Localiza a constraint DEFAULT pelo catálogo (qualquer nome) e remove antes da coluna — ou falha, se a opção estiver desmarcada.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly DropColumnsRequest _request = new();
+}

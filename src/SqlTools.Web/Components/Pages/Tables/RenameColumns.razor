@@ -1,0 +1,22 @@
+@page "/tabela/colunas/renomear"
+@page "/coluna/renomear"
+
+<ScriptPage Title="Renomear colunas" Request="_request" Wide="true"
+            Description="Renomeia várias colunas de uma tabela usando sp_rename.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <RenameGrid Renames="_request.Renames" Schema="@_request.Schema" Table="@_request.Table" />
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Ignora (sem erro) as colunas já renomeadas (antiga não existe e nova existe).</li>
+            <li>Falha se a coluna atual não existir ou se o novo nome já estiver em uso.</li>
+            <li>Atenção: views, procedures e funções que usam o nome antigo não são atualizadas.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly RenameColumnsRequest _request = new() { Renames = [new ColumnRename()] };
+}

@@ -28,6 +28,10 @@ public static class NavItems
         [
             new("Criar tabela", "tabela/criar", "table-plus"),
             new("Excluir tabela", "tabela/excluir", "trash"),
+            new("Adicionar colunas", "tabela/colunas/adicionar", "column-plus"),
+            new("Alterar colunas", "tabela/colunas/alterar", "edit"),
+            new("Renomear colunas", "tabela/colunas/renomear", "type"),
+            new("Excluir colunas", "tabela/colunas/excluir", "trash"),
         ]),
         new("Views", "eye",
         [
@@ -40,13 +44,6 @@ public static class NavItems
             new("Criar/recriar trigger", "trigger/criar", "zap"),
             new("Alterar trigger", "trigger/alterar", "edit"),
             new("Excluir trigger", "trigger/excluir", "trash"),
-        ]),
-        new("Colunas", "column-plus",
-        [
-            new("Adicionar coluna", "coluna/adicionar", "column-plus"),
-            new("Alterar coluna", "coluna/alterar", "edit"),
-            new("Renomear coluna", "coluna/renomear", "type"),
-            new("Excluir coluna", "coluna/excluir", "trash"),
         ]),
         new("Constraints", "key",
         [
@@ -65,7 +62,7 @@ public static class NavItems
     ];
 
     /// <summary>
-    /// Ordem do menu: (Administração, se for admin), Conexão, Tabelas, Views, Triggers, Colunas, Constraints, Índices e Lote.
+    /// Ordem do menu: (Administração, se for admin), Conexão, Tabelas (com as colunas), Views, Triggers, Constraints, Índices e Lote.
     /// </summary>
     public static readonly IReadOnlyList<NavGroup> Menu = [Connection, .. Operations, Batch];
 }
