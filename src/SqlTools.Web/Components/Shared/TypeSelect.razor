@@ -1,4 +1,4 @@
-<select class="form-select @(Small ? "form-select-sm" : "")" @bind="Column.DataType">
+<select class="form-select @(Small ? "form-select-sm" : "")" @bind="Column.DataType" @bind:after="Changed">
     @foreach (var type in SqlTypeCatalog.All)
     {
         <option value="@type.Name">@type.Name</option>
@@ -8,4 +8,10 @@
 @code {
     [Parameter, EditorRequired] public ColumnDefinition Column { get; set; } = default!;
     [Parameter] public bool Small { get; set; }
+
+    /// <summary>Avisa o preview do script que o formulário mudou (eventos "change" não sobem no Blazor).</summary>
+    [CascadingParameter] private ScriptEditContext? Edit { get; set; }
+
+    // Trocar o tipo pode desligar o IDENTITY (ColumnDefinition.DataType) e muda os argumentos exibidos ao lado.
+    private void Changed() => Edit?.NotifyChanged();
 }

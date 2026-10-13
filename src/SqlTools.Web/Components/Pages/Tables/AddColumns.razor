@@ -1,0 +1,33 @@
+@page "/tabela/colunas/adicionar"
+@page "/coluna/adicionar"
+
+<ScriptPage Title="Adicionar colunas" Request="_request" Wide="true"
+            Description="Adiciona várias colunas a uma tabela existente em um único script. Use a grade ou cole a lista de colunas.">
+    <ChildContent>
+        <TableFields Request="_request" />
+        <ColumnGrid Columns="_request.Columns" Schema="@_request.Schema" Table="@_request.Table" />
+        @if (_request.Columns.Any(c => c.IsNullable && c.HasDefault))
+        {
+            <label class="form-check mt-2">
+                <input type="checkbox" class="form-check-input" @bind="_request.FillExistingRowsWithDefault" />
+                Preencher registros existentes com o valor padrão nas colunas NULL (WITH VALUES)
+            </label>
+        }
+    </ChildContent>
+    <Validations>
+        <ul class="mb-0">
+            <li>Falha se a tabela não existir.</li>
+            <li>Cada coluna é verificada separadamente: ignora (sem erro) as que já existirem.</li>
+            <li>Falha se a coluna for NOT NULL sem valor padrão e a tabela já tiver registros.</li>
+            <li>Falha se for IDENTITY e a tabela já tiver uma coluna IDENTITY.</li>
+            <li>Falha se o nome de alguma constraint default já estiver em uso.</li>
+        </ul>
+    </Validations>
+</ScriptPage>
+
+@code {
+    private readonly AddColumnsRequest _request = new()
+    {
+        Columns = [new ColumnDefinition { DataType = "NVARCHAR", Length = 100 }],
+    };
+}

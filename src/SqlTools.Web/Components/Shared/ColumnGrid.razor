@@ -1,0 +1,221 @@
+@inject DatabaseConnection Connection
+
+@* Grade para definir várias colunas de uma vez (adicionar/alterar), com opção de colar a lista inteira. *@
+<div class="table-responsive">
+    <table class="table table-sm align-middle column-grid">
+        <thead>
+            <tr>
+                <th>Coluna</th>
+                <th>Tipo</th>
+                <th>Tamanho / precisão</th>
+                <th>NULL</th>
+                @if (ShowIdentity)
+                {
+                    <th>IDENTITY</th>
+                }
+                @if (ShowDefault)
+                {
+                    <th>Valor padrão (expressão SQL)</th>
+                }
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var column in Columns)
+            {
+                <tr @key="column">
+                    <td>
+                        @if (Lookup)
+                        {
+                            <ColumnNameInput Value="@column.Name" ValueChanged="name => OnNameChanged(column, name)"
+                                             Schema="@Schema" Table="@Table" Placeholder="Escolha ou digite" />
+                        }
+                        else
+                        {
+                            <input class="form-control form-control-sm" @bind="column.Name" @bind:event="oninput" placeholder="Nome" />
+                        }
+                    </td>
+                    <td class="type-cell"><TypeSelect Column="column" Small="true" /></td>
+                    <td class="args-cell"><TypeArgsFields Column="column" /></td>
+                    <td>
+                        <input type="checkbox" class="form-check-input" @bind="column.IsNullable" @bind:after="Changed"
+                               disabled="@column.IsIdentity" title="@(column.IsIdentity ? "Uma coluna IDENTITY não aceita NULL." : null)" />
+                    </td>
+                    @if (ShowIdentity)
+                    {
+                        <td>
+                            <div class="d-flex gap-1 align-items-center">
+                                @* Só tipos que aceitam autoincremento (inteiros e DECIMAL/NUMERIC com escala 0) habilitam o checkbox. *@
+                                <input type="checkbox" class="form-check-input" checked="@column.IsIdentity"
+                                       disabled="@(!column.CanBeIdentity)" title="@(column.IdentityUnavailableReason ?? "IDENTITY (autoincremento)")"
+                                       @onchange="e => SetIdentity(column, e.Value is true)" />
+                                @if (column.IsIdentity)
+                                {
+                                    <input type="number" class="form-control form-control-sm narrow" title="Início" @bind="column.IdentitySeed" @bind:after="Changed" />
+                                    <input type="number" class="form-control form-control-sm narrow" title="Incremento" @bind="column.IdentityIncrement" @bind:after="Changed" />
+                                }
+                            </div>
+                        </td>
+                    }
+                    @if (ShowDefault)
+                    {
+                        <td>
+                            <input class="form-control form-control-sm font-monospace" @bind="column.DefaultExpression" @bind:event="oninput"
+                                   placeholder="Ex.: 0, GETDATE()" disabled="@column.IsIdentity" />
+                        </td>
+                    }
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" title="Remover coluna" @onclick="() => Remove(column)">✕</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="d-flex flex-wrap gap-2 align-items-center">
+    <button class="btn btn-sm btn-outline-primary" @onclick="AddRow">+ Coluna</button>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="() => AddRows(5)">+ 5 colunas</button>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImport = !_showImport">
+        @(_showImport ? "Fechar importação" : "Colar lista de colunas")
+    </button>
+    <span class="text-muted small">@Columns.Count @(Columns.Count == 1 ? "coluna" : "colunas")</span>
+</div>
+
+@if (_showImport)
+{
+    <div class="mt-2">
+        <label class="form-label">Uma coluna por linha, como no CREATE TABLE</label>
+        <textarea class="form-control font-monospace" rows="8" @bind="_importText" @bind:event="oninput"
+                  placeholder="@ImportExample"></textarea>
+        <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-sm btn-primary" @onclick="Import">Importar para a grade</button>
+            <span class="text-muted small align-self-center">As colunas importadas são acrescentadas às da grade.</span>
+        </div>
+        @if (_importErrors.Count > 0)
+        {
+            <ul class="text-danger small mt-2 mb-0">
+                @foreach (var error in _importErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<ColumnDefinition> Columns { get; set; } = default!;
+    [Parameter] public string Schema { get; set; } = "dbo";
+    [Parameter] public string Table { get; set; } = "";
+
+    /// <summary>Colunas novas (adicionar): mostra IDENTITY e valor padrão.</summary>
+    [Parameter] public bool ShowIdentity { get; set; } = true;
+    [Parameter] public bool ShowDefault { get; set; } = true;
+
+    /// <summary>As colunas já existem (alterar): sugere as da tabela e preenche tipo/nulidade ao escolher uma.</summary>
+    [Parameter] public bool Lookup { get; set; }
+
+    [CascadingParameter] private ScriptEditContext? Edit { get; set; }
+
+    private bool _showImport;
+    private string _importText = "";
+    private List<string> _importErrors = [];
+
+    private const string ImportExample =
+        "Nome      NVARCHAR(100) NOT NULL\nEmail     VARCHAR(150)\nSaldo     DECIMAL(12,2) NOT NULL DEFAULT 0\nCriadoEm  DATETIME2(3) NOT NULL DEFAULT SYSDATETIME()";
+
+    private void Changed() => Edit?.NotifyChanged();
+
+    private void AddRow() => AddRows(1);
+
+    private void AddRows(int count)
+    {
+        for (var i = 0; i < count; i++)
+            Columns.Add(new ColumnDefinition { DataType = "NVARCHAR", Length = 100 });
+        Changed();
+    }
+
+    private void Remove(ColumnDefinition column)
+    {
+        Columns.Remove(column);
+        Changed();
+    }
+
+    private void SetIdentity(ColumnDefinition column, bool isIdentity)
+    {
+        column.IsIdentity = isIdentity;
+        if (isIdentity)
+        {
+            // Regras do SQL Server: coluna IDENTITY é NOT NULL e não tem valor padrão.
+            column.IsNullable = false;
+            column.DefaultExpression = null;
+        }
+        Changed();
+    }
+
+    private void Import()
+    {
+        var result = ColumnDefinitionParser.Parse(_importText);
+        _importErrors = result.Errors;
+        if (Lookup)
+        {
+            foreach (var column in result.Items)
+            {
+                column.IsIdentity = false;
+                column.DefaultExpression = null;
+                column.DefaultConstraintName = null;
+            }
+        }
+
+        // Linhas em branco da grade (sem nome) dão lugar às importadas.
+        Columns.RemoveAll(c => string.IsNullOrWhiteSpace(c.Name) && result.Items.Count > 0);
+        Columns.AddRange(result.Items);
+        if (result.Errors.Count == 0)
+        {
+            _importText = "";
+            _showImport = false;
+        }
+        Changed();
+    }
+
+    private async Task OnNameChanged(ColumnDefinition column, string name)
+    {
+        column.Name = name;
+        Changed();
+
+        // As colunas da tabela são lidas sob demanda: garante que já chegaram antes de procurar o tipo.
+        await Connection.EnsureTableAsync(Schema, Table);
+
+        var existing = Connection.Find(Schema, Table)?.Columns
+            .FirstOrDefault(c => c.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (existing is null || SqlTypeCatalog.Find(existing.DataType) is not { } type)
+            return;
+
+        column.Name = existing.Name;
+        column.DataType = type.Name;
+        column.IsNullable = existing.IsNullable;
+        switch (type.ArgumentKind)
+        {
+            case TypeArgumentKind.Length:
+                column.Length = CharLength(existing, type);
+                break;
+            case TypeArgumentKind.LengthOrMax:
+                column.IsMax = existing.MaxLength == -1;
+                column.Length = existing.MaxLength == -1 ? null : CharLength(existing, type);
+                break;
+            case TypeArgumentKind.PrecisionScale:
+                column.Precision = existing.Precision;
+                column.Scale = existing.Scale;
+                break;
+            case TypeArgumentKind.FractionalSeconds:
+                column.FractionalSeconds = existing.Scale;
+                break;
+        }
+        Changed();
+    }
+
+    // max_length é em bytes: tipos Unicode (NCHAR/NVARCHAR) ocupam 2 bytes por caractere.
+    private static int CharLength(ColumnInfo column, SqlTypeInfo type) =>
+        type.Name.StartsWith('N') ? column.MaxLength / 2 : column.MaxLength;
+}

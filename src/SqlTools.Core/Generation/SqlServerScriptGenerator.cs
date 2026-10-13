@@ -48,21 +48,27 @@ public sealed partial class SqlServerScriptGenerator(TimeProvider? timeProvider 
             w.Line();
         }
 
-        for (var i = 0; i < requests.Count; i++)
+        // Solicitações compostas (ex.: 25 colunas) viram uma operação por item, cada uma com suas verificações.
+        var operations = requests.SelectMany(Expand).ToList();
+
+        for (var i = 0; i < operations.Count; i++)
         {
-            if (requests.Count > 1)
-                w.Line($"-- [{i + 1}/{requests.Count}] {requests[i].Describe()}");
+            if (operations.Count > 1)
+                w.Line($"-- [{i + 1}/{operations.Count}] {operations[i].Describe()}");
 
             // View/trigger: DROP, GO, CREATE, GO, com transação própria atravessando os lotes (a opção "Transação" não se aplica).
-            if (BuildRecreate(requests[i]) is { } recreate)
+            if (BuildRecreate(operations[i]) is { } recreate)
                 WriteRecreateScript(w, recreate);
             else
-                WriteBatch(w, Build(requests[i]), options);
+                WriteBatch(w, Build(operations[i]), options);
             w.Line();
         }
 
         return new ScriptResult(w.ToString().TrimEnd() + Environment.NewLine, []);
     }
+
+    private static IEnumerable<ScriptRequest> Expand(ScriptRequest request) =>
+        request is IExpandableRequest expandable ? expandable.Expand().SelectMany(Expand) : [request];
 
     private void WriteHeader(SqlWriter w, IReadOnlyList<ScriptRequest> requests)
     {
