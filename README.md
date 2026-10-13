@@ -10,13 +10,14 @@ A aplicação **nunca executa os scripts**. Ela só gera o texto, que você copi
 
 | Grupo | Operações |
 |---|---|
-| **Tabelas** | Criar (com PK, IDENTITY, defaults e criação opcional do schema), excluir |
+| **Tabelas** | Criar (com PK, IDENTITY, defaults e criação opcional do schema), excluir e **gerenciar colunas**: adicionar, alterar tipo/nulidade, renomear e excluir, sempre **várias de uma vez** |
 | **Views** | Criar/recriar, adicionar colunas a uma view existente, excluir |
 | **Triggers** | Criar/recriar (AFTER/INSTEAD OF e INSERT/UPDATE/DELETE), alterar a definição existente, excluir |
-| **Colunas** | Adicionar, alterar tipo/nulidade, renomear, excluir |
 | **Constraints** | Chave primária, chave estrangeira, unique, check, default, excluir |
 | **Índices** | Criar (unique, clustered, INCLUDE, filtro WHERE), excluir |
 | **Lote** | Junta várias operações em um único arquivo, na ordem escolhida |
+
+**Várias colunas por script:** as telas de colunas (grupo Tabelas) trabalham com uma grade, então 25 colunas saem em um único script, com um bloco (e as verificações) por coluna. Também é possível **colar a lista de colunas** como num `CREATE TABLE` (`Saldo DECIMAL(12,2) NOT NULL DEFAULT 0`, uma por linha) ou, ao renomear, colar pares `Atual -> Novo` (aceita tab, vírgula e ponto e vírgula, inclusive copiados do Excel). Linhas inválidas são apontadas com o número da linha e as demais são aproveitadas. O **IDENTITY** só fica disponível para tipos que aceitam autoincremento (inteiros e `DECIMAL`/`NUMERIC` com escala 0), e uma coluna IDENTITY nunca aceita NULL.
 
 **Views e triggers** usam o formato clássico `DROP`, `GO`, `CREATE`, `GO`. Em "Adicionar colunas à view", as colunas novas são inseridas no `SELECT` principal por um analisador de T-SQL (que ignora strings, comentários e subconsultas), e a view é recriada. Views com `UNION`/`INTERSECT`/`EXCEPT` ou com lista de colunas no cabeçalho não são suportadas nessa tela; para elas, use "Criar/recriar view" com o `SELECT` completo.
 
@@ -93,7 +94,7 @@ GO
 
 ```
 src/
-  SqlTools.Core/   Geração de scripts (independente de interface): requisições, gerador T-SQL, analisador de T-SQL
+  SqlTools.Core/   Geração de scripts (independente de interface): requisições, gerador T-SQL, analisador de T-SQL, importação de listas de colunas
   SqlTools.Web/    Aplicação Blazor: páginas, componentes, login, leitura de metadados do banco
 tests/
   SqlTools.Core.Tests/   Gerador, analisador e execução dos scripts em um banco real
