@@ -108,7 +108,7 @@ public class SafeGuardTests(LocalDbFixture db) : IClassFixture<LocalDbFixture>
     public void AddColumn_JustChecksWhetherTheColumnAlreadyExists()
     {
         Assert.Equal("""
-            IF COL_LENGTH(N'[dbo].[T]', N'Nome') IS NULL
+            IF NOT EXISTS (SELECT 1 FROM Syscolumns WHERE id = OBJECT_ID(N'[dbo].[T]') AND name = N'Nome')
             BEGIN
                 ALTER TABLE [dbo].[T] ADD [Nome] NVARCHAR(20) NULL;
             END
@@ -149,7 +149,7 @@ public class SafeGuardTests(LocalDbFixture db) : IClassFixture<LocalDbFixture>
         var script = Script(new RenameColumnRequest { Table = "T", ColumnName = "Nome", NewName = "Titulo" });
 
         Assert.Equal("""
-            IF COL_LENGTH(N'[dbo].[T]', N'Nome') IS NOT NULL OR COL_LENGTH(N'[dbo].[T]', N'Titulo') IS NULL
+            IF EXISTS (SELECT 1 FROM Syscolumns WHERE id = OBJECT_ID(N'[dbo].[T]') AND name = N'Nome') OR NOT EXISTS (SELECT 1 FROM Syscolumns WHERE id = OBJECT_ID(N'[dbo].[T]') AND name = N'Titulo')
             BEGIN
                 EXEC sp_rename N'[dbo].[T].[Nome]', N'Titulo', N'COLUMN';
             END

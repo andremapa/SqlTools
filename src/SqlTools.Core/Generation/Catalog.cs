@@ -39,10 +39,10 @@ internal static class Catalog
     public static string SchemaMissing(string schema) => $"SCHEMA_ID({SqlText.Literal(schema.Trim())}) IS NULL";
 
     public static string ColumnExists(string table, string column) =>
-        $"COL_LENGTH({SqlText.Literal(table)}, {SqlText.Literal(column.Trim())}) IS NOT NULL";
+        $"EXISTS (SELECT 1 FROM Syscolumns WHERE id = OBJECT_ID({SqlText.Literal(table)}) AND name = {SqlText.Literal(column.Trim())})";
 
     public static string ColumnMissing(string table, string column) =>
-        $"COL_LENGTH({SqlText.Literal(table)}, {SqlText.Literal(column.Trim())}) IS NULL";
+        $"NOT EXISTS (SELECT 1 FROM Syscolumns WHERE id = OBJECT_ID({SqlText.Literal(table)}) AND name = {SqlText.Literal(column.Trim())})";
 
     public static string ColumnAllowsNull(string table, string column) =>
         $"COLUMNPROPERTY(OBJECT_ID({SqlText.Literal(table)}), {SqlText.Literal(column.Trim())}, 'AllowsNull') = 1";
